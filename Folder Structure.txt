@@ -1,0 +1,52 @@
+spiceceylon/
+│
+├── config/
+│   └── db.php
+│
+├── auth/
+│   ├── login.php
+│   ├── register.php
+│   ├── logout.php
+│
+├── admin/
+│   ├── dashboard.php
+│   ├── manage_users.php
+│   ├── manage_products.php
+│   ├── approve_requests.php
+│   ├── sales_analytics.php
+│   ├── forecast_sales.php
+│
+├── farmer/
+│   ├── dashboard.php
+│   ├── add_product.php
+│   ├── manage_products.php
+│   ├── sales_analytics.php
+│   ├── approve_requests.php
+│
+├── customer/
+│   ├── dashboard.php
+│   ├── browse.php
+│   ├── cart.php
+│   ├── checkout.php
+│   ├── orders.php
+│   ├── request_product.php
+│
+├── analytics/
+│   ├── sales_report.php
+│   ├── forecast_sales.php
+│
+├── includes/
+│   ├── header.php
+│   ├── footer.php
+│   ├── auth_check.php
+│
+├── assets/
+│   ├── css/
+│   │   ├── main.css
+│   │   ├── admin.css
+│   │   ├── farmer.css
+│   │   ├── customer.css
+│   ├── images/
+│   └── js/
+│
+└── index.php
