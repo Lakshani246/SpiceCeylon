@@ -1,52 +1,72 @@
-spiceceylon/
+SpiceCeylon/
+│
+├── index.php                     # Landing page (video + login/register)
 │
 ├── config/
-│   └── db.php
+│   ├── db.php
+│   ├── auth_check.php
+│   └── functions.php
 │
 ├── auth/
 │   ├── login.php
 │   ├── register.php
 │   ├── logout.php
+│   └── auth.css
+│
+├── customer/
+│   ├── home.php                  # FIRST PAGE after login (spices grid)
+│   ├── dashboard.php             # Profile + orders + requests + messages
+│   ├── browse.php
+│   ├── cart.php
+│   ├── checkout.php
+│   ├── orders.php
+│   ├── request_product.php
+│   ├── messages.php
+│   ├── profile.php
+│   ├── header.php
+│   ├── footer.php
+│   ├── home.css
+│   ├── dashboard.css
+│   ├── browse.css
+│   ├── cart.css
+│   ├── orders.css
+│   ├── request.css
+│   ├── profile.css
+│
+├── farmer/
+│   ├── dashboard.php
+│   ├── add_product.php
+│   ├── manage_products.php
+│   ├── approve_requests.php
+│   ├── header.php
+│   ├── footer.php
 │
 ├── admin/
 │   ├── dashboard.php
 │   ├── manage_users.php
 │   ├── manage_products.php
 │   ├── approve_requests.php
+│   ├── messages.php              # Admin sends messages to customers
 │   ├── sales_analytics.php
 │   ├── forecast_sales.php
-│
-├── farmer/
-│   ├── dashboard.php
-│   ├── add_product.php
-│   ├── manage_products.php
-│   ├── sales_analytics.php
-│   ├── approve_requests.php
-│
-├── customer/
-│   ├── dashboard.php
-│   ├── browse.php
-│   ├── cart.php
-│   ├── checkout.php
-│   ├── orders.php
-│   ├── request_product.php
+│   ├── header.php
+│   ├── footer.php
 │
 ├── analytics/
 │   ├── sales_report.php
 │   ├── forecast_sales.php
 │
-├── includes/
-│   ├── header.php
-│   ├── footer.php
-│   ├── auth_check.php
-│
 ├── assets/
 │   ├── css/
 │   │   ├── main.css
+│   │   ├── landing.css
 │   │   ├── admin.css
 │   │   ├── farmer.css
-│   │   ├── customer.css
+│   │   └── customer.css
+│   ├── js/
 │   ├── images/
-│   └── js/
+│   │   └── profile_images/
+│   └── videos/
+│       └── landing-video.mp4
 │
-└── index.php
+└── README.md
