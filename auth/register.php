@@ -68,6 +68,27 @@ button:hover { background-color:#a14c2e; }
 
 /* Farm Location Field Toggle */
 #farm_location_group { display:none; }
+
+/* Top Right Back Button */
+.back-top-right {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    padding: 10px 18px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    z-index: 999;
+    transition: 0.3s ease;
+}
+
+.back-top-right:hover {
+    background: rgba(0, 0, 0, 0.85);
+}
+
 </style>
 <script>
 // Show farm location input only if role is farmer
@@ -134,6 +155,8 @@ function toggleFarmLocation() {
         <div class="footer-text">
             Already registered? <a href="login.php" style="color:#b85c38; text-decoration:none;">Login here</a>
         </div>
+        <a href="../index.php" class="back-top-right">🏠 Home</a>
+
     </div>
 </div>
 </body>

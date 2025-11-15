@@ -78,6 +78,28 @@ button:hover { background-color:#a14c2e; }
 .register-links { margin-top:20px; }
 .register-links a { color:#b85c38; text-decoration:none; margin:0 10px; transition:0.3s; font-weight:600; }
 .register-links a:hover { color:#a14c2e; text-decoration:underline; }
+
+/* Top Right Back Button */
+.back-top-right {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.65);
+    color: #fff;
+    padding: 10px 18px;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: bold;
+    z-index: 999;
+    transition: 0.3s ease;
+}
+
+.back-top-right:hover {
+    background: rgba(0, 0, 0, 0.85);
+}
+
+
 </style>
 </head>
 <body>
@@ -113,10 +135,10 @@ button:hover { background-color:#a14c2e; }
 
         <!-- Register Links -->
         <div class="register-links">
-            <span>Not registered?</span>
-            <a href="../auth/register.php">Register as Farmer</a> |
-            <a href="../auth/register.php">Register as Customer</a>
+            <span>Not registered yet?</span>
+            <a href="../auth/register.php">Register as Farmer/Customer</a> |
         </div>
+        <a href="../index.php" class="back-top-right">🏠 Home</a>
 
         <p class="footer-text">© 2025 SpiceCeylon. All rights reserved.</p>
     </div>
