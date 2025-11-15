@@ -15,13 +15,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($role == "admin") {
         $result = $conn->query("SELECT * FROM admins WHERE email='$email'");
     } else {
-        $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role'");
+        $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role' AND is_registered=1");
     }
 
     if ($result && $result->num_rows > 0) {
         $user = $result->fetch_assoc();
         if (password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
+            // Save session variables
+            if ($role == 'admin') {
+                $_SESSION['admin_id'] = $user['admin_id'];
+            } else {
+                $_SESSION['user_id'] = $user['user_id'];
+            }
             $_SESSION['role'] = $role;
 
             // Redirect based on role
@@ -30,7 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             } elseif ($role == 'farmer') {
                 header("Location: ../farmer/dashboard.php");
             } else {
-                header("Location: ../customer/dashboard.php");
+                header("Location: ../customer/home.php"); // UPDATED: customer first page
             }
             exit;
         } else {
@@ -41,6 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 ?>
+
 
 <!DOCTYPE html>
 <html lang="en">
