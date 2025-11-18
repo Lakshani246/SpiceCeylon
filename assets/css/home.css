@@ -1,100 +1,112 @@
-/* General Reset */
+/* ================================
+   GLOBAL RESET & BASE STYLES
+   ================================= */
 body {
     margin: 0;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #fff8f0;
+    background: #fff8f0; /* Light spice-beige background */
+    color: #4a3520;
 }
 
 main {
     padding: 20px;
 }
 
-/* HEADER STYLES */
-header { 
-    background: #b85c38; 
-    color: #fff; 
-    padding: 15px 30px; 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
-    position: sticky; 
-    top: 0; 
-    z-index: 1000; 
+/* ================================
+   HEADER
+   ================================= */
+header {
+    background: #b85c38; /* Deep spice brown-orange */
+    color: #fff;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
 }
 
-header h1 { 
-    margin: 0; 
-    font-size: 28px; 
+header h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
 }
 
-nav a { 
-    color: #fff; 
-    text-decoration: none; 
-    margin: 0 12px; 
-    font-weight: 600; 
-    transition: 0.3s; 
+nav a {
+    color: #fff;
+    text-decoration: none;
+    margin: 0 12px;
+    font-weight: 600;
+    transition: 0.3s;
 }
 
-nav a:hover { 
-    text-decoration: underline; 
-    color: #fbeec1; 
+nav a:hover {
+    color: #ffe1c4;
 }
 
-.user-info { 
-    font-size: 14px; 
+.logout-btn {
+    background: #fff;
+    color: #b85c38;
+    padding: 6px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: 0.3s;
 }
 
-.logout-btn { 
-    background: #fff; 
-    color: #b85c38; 
-    padding: 6px 12px; 
-    border-radius: 6px; 
-    text-decoration: none; 
-    font-weight: bold; 
-    transition: 0.3s; 
+.logout-btn:hover {
+    background: #ffe1c4;
 }
 
-.logout-btn:hover { 
-    background: #fbeec1; 
-}
-
-/* FOOTER STYLES */
-footer { 
-    background: #f2a65a; 
-    color: #fff; 
-    text-align: center; 
-    padding: 20px 0; 
-    margin-top: 50px; 
-    font-size: 14px; 
+/* ================================
+   FOOTER
+   ================================= */
+footer {
+    background: #f2a65a;
+    color: #fff;
+    text-align: center;
+    padding: 25px 0;
+    margin-top: 50px;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
 }
 
 footer a {
     color: #fff;
-    text-decoration: none;
     margin: 0 5px;
-    transition: color 0.2s;
 }
 
 footer a:hover {
     color: #6b3e26;
 }
 
-/* Home Container */
+/* ================================
+   HOME PAGE CONTAINER
+   ================================= */
 .home-container {
-    min-height: 100vh;
-    font-family: Arial, sans-serif;
-    padding-bottom: 50px;
+    padding-bottom: 40px;
+    animation: fadeIn 0.7s ease;
 }
 
-/* Video Banner */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ================================
+   VIDEO BANNER
+   ================================= */
 .video-banner {
     position: relative;
     width: 100%;
     height: 450px;
-    overflow: hidden;
     border-radius: 15px;
     margin-bottom: 40px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
 }
 
 .banner-video {
@@ -109,62 +121,69 @@ footer a:hover {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(107, 62, 38, 0.5);
-    color: #fff;
+    background-color: rgba(70, 40, 20, 0.45);
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
     text-align: center;
-    padding: 20px;
+    color: #fff;
 }
 
 .video-overlay h1 {
-    font-size: 3rem;
-    margin-bottom: 10px;
+    font-size: 3.2rem;
+    margin: 0;
+    font-weight: 700;
 }
 
 .video-overlay p {
     font-size: 1.3rem;
+    margin-top: 10px;
 }
 
-/* Section Title */
+/* ================================
+   SECTION TITLE
+   ================================= */
 .section-title {
-    font-size: 2rem;
+    font-size: 2.1rem;
     color: #6b3e26;
-    margin: 30px 0 20px;
     text-align: center;
+    margin: 40px 0 20px;
+    font-weight: 700;
 }
 
-/* Spices Grid */
+/* ================================
+   SPICE GRID
+   ================================= */
 .spices-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 25px;
-    padding: 0 20px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 30px;
+    padding: 0 25px;
 }
 
-/* Spice Card */
+/* ================================
+   SPICE CARD
+   ================================= */
 .spice-card {
-    background-color: #fff;
-    border-radius: 15px;
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    background: #fff;
+    border-radius: 18px;
     padding: 20px;
-    transition: transform 0.2s;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+    transition: all 0.25s ease;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
 }
 
 .spice-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-6px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
 }
 
 .spice-card img {
     width: 100%;
     height: 220px;
+    border-radius: 14px;
     object-fit: cover;
-    border-radius: 12px;
     margin-bottom: 15px;
 }
 
@@ -176,49 +195,32 @@ footer a:hover {
 
 .spice-card p {
     font-size: 1rem;
-    color: #7a5b3a;
-    margin-bottom: 8px;
+    color: #6a5238;
+    margin-bottom: 10px;
 }
 
-/* Card Controls */
+/* ================================
+   CARD CONTROLS (Only VIEW button now)
+   ================================= */
 .card-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     margin-top: auto;
-}
-
-.btn-view, .btn-add-cart {
-    padding: 8px 15px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-    font-size: 0.95rem;
-    transition: all 0.2s;
-    text-decoration: none;
-    color: #fff;
+    display: flex;
+    justify-content: center;
 }
 
 .btn-view {
+    padding: 10px 18px;
+    border-radius: 10px;
     background-color: #c45e2c;
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    transition: 0.25s ease;
+    font-size: 1rem;
 }
 
 .btn-view:hover {
     background-color: #a0491f;
+    transform: scale(1.05);
 }
 
-.btn-add-cart {
-    background-color: #f0a05d;
-}
-
-.btn-add-cart:hover {
-    background-color: #d9883e;
-}
-
-.quantity {
-    width: 50px;
-    padding: 5px;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    text-align: center;
-}
