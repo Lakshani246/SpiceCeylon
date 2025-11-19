@@ -31,11 +31,10 @@ $user = $user_query->fetch_assoc();
     <nav>
         <a href="home.php">Home</a>
         <a href="dashboard.php">Dashboard</a>
-        <a href="browse.php">Browse</a>
         <a href="cart.php">Cart</a>
         <a href="orders.php">Orders</a>
         <a href="request_product.php">Request</a>
-        <a href="profile.php">Profile</a>
+        <a href="profile.php">About Us</a>
     </nav>
     <div class="user-info">
         Welcome, <?php echo htmlspecialchars($user['name']); ?> 

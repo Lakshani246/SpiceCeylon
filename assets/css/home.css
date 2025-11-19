@@ -224,3 +224,9 @@ footer a:hover {
     transform: scale(1.05);
 }
 
+.price {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #b04d0f; /* Cinnamon styled brown */
+    margin-bottom: 10px;
+}

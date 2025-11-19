@@ -12,7 +12,22 @@ $spice_id = 'cloves';
 $spice_name = 'Cloves';
 $spice_sinhala = 'Karabu Neti - කරාබු නැටි';
 $spice_desc = 'Cloves are aromatic flower buds used widely in Sri Lankan cuisine and traditional medicine.';
-$spice_image = '../../assets/images/Cloves1.jpg'; // <-- make sure this image exists in assets/images/
+$price_25g = 55;
+$price_50g = 150;
+$price_100g = 250;
+$price_250g = 300;
+$price_500g = 2000;
+$price_1kg  = 3800;
+
+$prices = [
+    '25g' => $price_25g,
+    '50g' => $price_50g,
+    '100g' => $price_100g,
+    '250g' => $price_250g,
+    '500g' => $price_500g,
+    '1kg' => $price_1kg
+];
+$spice_image = '../../assets/images/Cloves1.jpg';
 
 // --- Handle review submission ---
 $review_submitted = false;
@@ -80,6 +95,12 @@ footer { background-color: #d27f2d; color: #fff; text-align: center; padding: 1.
 footer a { color: #fff; text-decoration: underline; margin: 0 5px; transition: opacity 0.3s; }
 footer a:hover { opacity: 0.8; }
 footer p { margin: 0.5rem 0 0; }
+.product-prices p {
+    margin: 5px 0;
+    font-size: 1rem;
+    color: #7c3f0d;
+    font-weight: bold;
+}
 @media(max-width:768px){ .product-details{flex-direction:column;} .back-button{float:none; display:block; margin-bottom:1rem;} footer{padding:1rem 10px;font-size:0.9rem;} }
 </style>
 </head>
@@ -108,21 +129,32 @@ footer p { margin: 0.5rem 0 0; }
             <h3><?php echo $spice_sinhala; ?></h3>
             <p><?php echo $spice_desc; ?></p>
 
+            <div class="product-prices">
+                <p><strong>25g:</strong> Rs. <?php echo $price_25g; ?>.00</p>
+                <p><strong>50g:</strong> Rs. <?php echo $price_50g; ?>.00</p>
+                <p><strong>100g:</strong> Rs. <?php echo $price_100g; ?>.00</p>
+                <p><strong>250g:</strong> Rs. <?php echo $price_250g; ?>.00</p>
+                <p><strong>500g:</strong> Rs. <?php echo $price_500g; ?>.00</p>
+                <p><strong>1kg:</strong> Rs. <?php echo $price_1kg; ?>.00</p>
+            </div>
+
+
             <!-- Size Selection -->
-            <div class="size-buttons">
+            <br><div class="size-buttons">
                 <?php
                 $sizes = ['25g','50g','100g','250g','500g','1kg'];
                 foreach($sizes as $size) {
                     echo "<button data-size='$size'>$size</button>";
                 }
                 ?>
-            </div>
+            </div></br>
 
             <!-- Quantity -->
             <div class="quantity-container">
                 <label for="quantity">Quantity:</label>
                 <input type="number" id="quantity" value="1" min="1">
             </div>
+            <p><strong>Price: </strong> Rs. <span id="display-price"><?php echo $prices['250g']; ?>.00</span></p>
 
             <button class="btn-add-cart" data-id="<?php echo $spice_id; ?>">Add to Cart</button>
         </div>
@@ -184,21 +216,41 @@ footer p { margin: 0.5rem 0 0; }
 <script>
 // Size selection
 const sizeButtons = document.querySelectorAll('.size-buttons button');
-let selectedSize = '100g';
-sizeButtons.forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-        sizeButtons.forEach(b=>b.classList.remove('selected'));
+const quantityInput = document.getElementById('quantity');
+const priceDisplay = document.getElementById('display-price');
+let selectedSize = '250g'; // default size
+
+// Prices from PHP
+const prices = <?php echo json_encode($prices); ?>;
+
+function updatePrice() {
+    const qty = parseInt(quantityInput.value) || 1;
+    const price = prices[selectedSize] * qty;
+    priceDisplay.textContent = "Rs. " + price.toLocaleString() + ".00";
+}
+
+// Size button click
+sizeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+        sizeButtons.forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        selectedSize = btn.getAttribute('data-size');
+        selectedSize = btn.dataset.size;
+        updatePrice(); // update price when size changes
     });
 });
+
+// Quantity change
+quantityInput.addEventListener('input', updatePrice);
+
+// Initialize price on page load
+updatePrice();
 
 // Add to cart
 document.querySelector('.btn-add-cart').addEventListener('click', ()=>{
     const spiceId = "<?php echo $spice_id; ?>";
-    const quantity = document.getElementById('quantity').value;
+    const quantity = parseInt(quantityInput.value) || 1;
     alert(`Added ${quantity} x ${selectedSize} of ${spiceId} to your cart!`);
-    // TODO: Replace alert with AJAX/PHP call to add cart
+    // TODO: Replace alert with AJAX/PHP call to actually add to cart
 });
 </script>
 
