@@ -8,21 +8,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
 include "../../config/db.php"; 
 
-$spice_id = 'cardamom';
-$spice_name = 'Cardamom';
-$spice_sinhala = 'Enasal - ඇනසල්';
-$spice_desc = 'Aromatic green cardamom pods with complex flavor, known as the "Queen of Spices".Both green and black cardamom are used, with green being more common for its intense aroma.';
+$spice_id = 'black_pepper';
+$spice_name = 'Black Pepper';
+$spice_sinhala = 'Gammiris - ගම්මිරිස්';
+$spice_desc = 'Sri Lanka’s famous pepper.';
 
 $prices = [
-    '10g Pods'  => 150,
-    '25g Pods'  => 350,
-    '50g Pods'  => 650,
-    '25g Powder' => 400,
-    '50g Powder' => 750
+    '25g'  => 55,
+    '50g'  => 150,
+    '100g' => 250,
+    '250g' => 300,
+    '500g' => 2000,
+    '1kg'  => 3800
 ];
 
-$default_price = $prices['25g Pods'];
-$spice_image = '../../assets/images/Cardamom1.jpg';
+$default_price = $prices['250g'];
+$spice_image = '../../assets/images/Black-Pepper1.jpg';
 
 // Review submit
 $review_submitted = false;
@@ -47,11 +48,16 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
 <head>
 <meta charset="UTF-8">
 <title><?php echo $spice_name; ?> | SpiceCeylon</title>
+
+<!-- LINK SHARED CSS -->
 <link rel="stylesheet" href="../../assets/css/view_product.css">
+
+<!-- SEND PRICE DATA TO JS -->
 <script>
     const PRICE_DATA = <?php echo json_encode($prices); ?>;
     const DEFAULT_PRICE = <?php echo $default_price; ?>;
 </script>
+
 </head>
 <body>
 
@@ -66,38 +72,47 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
 </header>
 
 <div class="product-container">
+
     <a href="../home.php" class="back-button">← Back to Shop</a>
+
     <div class="product-details">
+
         <div class="product-image">
             <img src="<?php echo $spice_image; ?>" alt="<?php echo $spice_name; ?>">
         </div>
+
         <div class="product-info">
             <h1><?php echo $spice_name; ?></h1>
             <h3><?php echo $spice_sinhala; ?></h3>
             <p><?php echo $spice_desc; ?></p>
+
             <div class="product-prices">
                 <?php foreach($prices as $size => $price): ?>
                     <p><strong><?php echo $size; ?>:</strong> Rs. <?php echo $price; ?>.00</p>
                 <?php endforeach; ?>
             </div>
+
             <div class="size-buttons">
                 <?php foreach($prices as $size => $p): ?>
                     <button data-size="<?php echo $size; ?>"><?php echo $size; ?></button>
                 <?php endforeach; ?>
             </div>
+
             <div class="quantity-container">
                 <label>Quantity:</label>
                 <input type="number" id="quantity" value="1" min="1">
             </div>
+
             <p><strong>Price:</strong> Rs. <span id="display-price"><?php echo $default_price; ?>.00</span></p>
+
             <button class="btn-add-cart" data-id="<?php echo $spice_id; ?>">Add to Cart</button>
         </div>
+
     </div>
+
     <div class="product-meta">
-        <p><strong>SKU:</strong> CAR-028</p>
-        <p><strong>Category:</strong> Premium Ceylon Spices</p>
-        <p><strong>Flavor Profile:</strong> Aromatic, Citrusy & Minty</p>
-        <p><strong>Best For:</strong> Curries, Biryani, Desserts, Tea</p>
+        <p><strong>SKU:</strong> N/A</p>
+        <p><strong>Category:</strong> Core Sri Lankan Spices</p>
         <p><strong>Share:</strong>
         <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode("https://yourwebsite.com"); ?>" target="_blank">
             <img src="../../assets/icons/facebook.png" alt="Facebook" class="share-icon">
@@ -113,8 +128,10 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </a>
     </p>
     </div>
+
     <div class="reviews-section">
         <h2>Reviews</h2>
+
         <?php if(mysqli_num_rows($reviews_result)===0): ?>
             <p>No reviews yet.</p>
         <?php else: ?>
@@ -125,29 +142,37 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
                 </div>
             <?php endwhile; ?>
         <?php endif; ?>
+
         <h3>Leave a Review</h3>
         <?php if($review_submitted) echo "<p style='color:green;'>Thank you! Review submitted.</p>"; ?>
+
         <form method="post">
             <p>Your rating *</p>
             <select name="rating" required>
                 <option value="">Select Rating</option>
                 <?php for($i=1;$i<=5;$i++) echo "<option>$i</option>"; ?>
             </select>
+
             <p>Your review *</p>
             <textarea name="review_text" required></textarea>
+
             <p>Name *</p>
             <input type="text" name="name" required>
+
             <p>Email *</p>
             <input type="email" name="email" required>
+
             <button type="submit" name="submit_review">Submit Review</button>
         </form>
     </div>
+
 </div>
 
-<script>
+<!-- SHARED JS FILE -->
+ <script>
 const prices = <?php echo json_encode($prices); ?>;
 </script>
-<?php include "../footer.php"; ?>
 <script src="../../assets/js/view_product.js"></script>
+
 </body>
 </html>

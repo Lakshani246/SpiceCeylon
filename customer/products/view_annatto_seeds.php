@@ -8,21 +8,20 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
 include "../../config/db.php"; 
 
-$spice_id = 'cardamom';
-$spice_name = 'Cardamom';
-$spice_sinhala = 'Enasal - ඇනසල්';
-$spice_desc = 'Aromatic green cardamom pods with complex flavor, known as the "Queen of Spices".Both green and black cardamom are used, with green being more common for its intense aroma.';
+$spice_id = 'annatto_seeds';
+$spice_name = 'Annatto Seeds';
+$spice_sinhala = 'Kaha Kudu Beeja - කහ කුඩු බීජ';
+$spice_desc = 'Natural coloring seeds that impart vibrant yellow-orange color to dishes.';
 
 $prices = [
-    '10g Pods'  => 150,
-    '25g Pods'  => 350,
-    '50g Pods'  => 650,
-    '25g Powder' => 400,
-    '50g Powder' => 750
+    '25g'   => 100,
+    '50g'   => 180,
+    '100g'  => 320,
+    '250g'  => 750
 ];
 
-$default_price = $prices['25g Pods'];
-$spice_image = '../../assets/images/Cardamom1.jpg';
+$default_price = $prices['100g'];
+$spice_image = '../../assets/images/Annatto-Seeds1.jpg';
 
 // Review submit
 $review_submitted = false;
@@ -94,10 +93,9 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </div>
     </div>
     <div class="product-meta">
-        <p><strong>SKU:</strong> CAR-028</p>
-        <p><strong>Category:</strong> Premium Ceylon Spices</p>
-        <p><strong>Flavor Profile:</strong> Aromatic, Citrusy & Minty</p>
-        <p><strong>Best For:</strong> Curries, Biryani, Desserts, Tea</p>
+        <p><strong>SKU:</strong> ANN-019</p>
+        <p><strong>Category:</strong> Natural Colorants & Specialty</p>
+        <p><strong>Primary Use:</strong> Natural Food Coloring</p>
         <p><strong>Share:</strong>
         <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode("https://yourwebsite.com"); ?>" target="_blank">
             <img src="../../assets/icons/facebook.png" alt="Facebook" class="share-icon">
@@ -143,11 +141,9 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </form>
     </div>
 </div>
-
 <script>
 const prices = <?php echo json_encode($prices); ?>;
 </script>
-<?php include "../footer.php"; ?>
 <script src="../../assets/js/view_product.js"></script>
 </body>
 </html>

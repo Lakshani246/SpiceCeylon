@@ -58,7 +58,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
         "Tamarind" => "view_tamarind.php",
         "Screw Pine / Kewra" => "view_kewra.php",
         "Licorice Powder" => "view_licorice_powder.php",
-        "Annatto Seeds" => "view_annatto.php",
+        "Annatto Seeds" => "view_annatto_seeds.php",
         "Ajwain (Carom Seeds)" => "view_ajwain.php",
         "Dill" => "view_dill.php",
         "Sweet Flag" => "view_sweet_flag.php",
@@ -68,52 +68,52 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
         "Chili Paste" => "view_chili_paste.php",
     ];
 
-    // YOUR CATEGORIES
+    // CATEGORIES
     $categories = [
         "Core Sri Lankan Spices" => [
-            ["name"=>"Cinnamon","sinhala"=>"Kurundu - කුරුඳු","desc"=>"True Ceylon Cinnamon is a national treasure.", "price"=>4500],
-            ["name"=>"Cardamom","sinhala"=>"Enasal - එනසාල්","desc"=>"Green cardamom gives an intense aroma.","price"=>7800],
-            ["name"=>"Cloves","sinhala"=>"Karabu Neti - කරාබු නැටි","desc"=>"Used in rice and meat dishes.","price"=>7800],
-            ["name"=>"Nutmeg & Mace","sinhala"=>"Sadikka / Wasawasee - සාදික්කා / වසාවාසි","desc"=>"Warm, sweet flavor for desserts/curries.","price"=>7800],
-            ["name"=>"Black Pepper","sinhala"=>"Gammiris - ගම්මිරිස්","desc"=>"Sri Lanka’s famous pepper.","price"=>7800],
-            ["name"=>"Cumin Seeds","sinhala"=>"Suduru - සුදුරු","desc"=>"Earthy spice used in curry powders.","price"=>7800],
-            ["name"=>"Coriander Seeds","sinhala"=>"Kottamalli - කොත්තමල්ලි","desc"=>"Base for Sri Lankan curry powders.","price"=>7800],
-            ["name"=>"Fennel Seeds","sinhala"=>"Maduru - මාදුරු","desc"=>"Sweet, aromatic spice.","price"=>7800],
-            ["name"=>"Fenugreek Seeds","sinhala"=>"Uluhal - උලුහාල්","desc"=>"Used sparingly for bitter flavor.","price"=>7800],
-            ["name"=>"Mustard Seeds","sinhala"=>"Aba - අබ","desc"=>"Used in tempering.","price"=>7800],
-            ["name"=>"Turmeric","sinhala"=>"Kaha - කහ","desc"=>"Colorful earthy spice.","price"=>7800],
+            ["name"=>"Cinnamon","sinhala"=>"Kurundu - කුරුඳු","desc"=>"True Ceylon Cinnamon is a national treasure.", "price"=> 3200],
+            ["name"=>"Cardamom","sinhala"=>"Enasal - එනසාල්","desc"=>"Green cardamom gives an intense aroma.(pods - very premium)","price"=>15000],
+            ["name"=>"Cloves","sinhala"=>"Karabu Neti - කරාබු නැටි","desc"=>"Used in rice and meat dishes.","price"=>6000],
+            ["name"=>"Nutmeg & Mace","sinhala"=>"Sadikka / Wasawasee - සාදික්කා / වසාවාසි","desc"=>"Warm, sweet flavor for desserts/curries.(nutmeg powder)","price"=> 8000],
+            ["name"=>"Black Pepper","sinhala"=>"Gammiris - ගම්මිරිස්","desc"=>"Sri Lanka’s famous pepper.","price"=>3800],
+            ["name"=>"Cumin Seeds","sinhala"=>"Suduru - සුදුරු","desc"=>"Earthy spice used in curry powders.","price"=>1800],
+            ["name"=>"Coriander Seeds","sinhala"=>"Kottamalli - කොත්තමල්ලි","desc"=>"Base for Sri Lankan curry powders.","price"=>1600],
+            ["name"=>"Fennel Seeds","sinhala"=>"Maduru - මාදුරු","desc"=>"Sweet, aromatic spice.","price"=>2000],
+            ["name"=>"Fenugreek Seeds","sinhala"=>"Uluhal - උලුහාල්","desc"=>"Used sparingly for bitter flavor.","price"=>2200],
+            ["name"=>"Mustard Seeds","sinhala"=>"Aba - අබ","desc"=>"Used in tempering.","price"=>1400],
+            ["name"=>"Turmeric","sinhala"=>"Kaha - කහ","desc"=>"Colorful earthy spice.","price"=>3000],
         ],
 
         "Fresh Herbs & Aromatics" => [
-            ["name"=>"Pandan Leaves","sinhala"=>"Rampe - රම්පේ","desc"=>"Adds aroma to rice & curries.","price"=>7800],
-            ["name"=>"Curry Leaves","sinhala"=>"Karapincha - කරපිංචා","desc"=>"Used in almost every curry.","price"=>7800],
-            ["name"=>"Lemongrass","sinhala"=>"Sera - සේර","desc"=>"Strong citrus scent.","price"=>7800],
-            ["name"=>"Sri Lankan Ginger","sinhala"=>"Inguru - ඉඟුරු","desc"=>"Key curry base ingredient.","price"=>7800],
-            ["name"=>"Garlic","sinhala"=>"Sudulunu - සුදුලුනු","desc"=>"Used in tempering and pastes.","price"=>7800],
-            ["name"=>"Ceylon Citron / Lemon","sinhala"=>"Dehi - දෙහි / පැංගිරි","desc"=>"Strong citrus rind and juice.","price"=>7800],
+            ["name"=>"Pandan Leaves","sinhala"=>"Rampe - රම්පේ","desc"=>"Adds aroma to rice & curries.","price"=>800],
+            ["name"=>"Curry Leaves","sinhala"=>"Karapincha - කරපිංචා","desc"=>"Used in almost every curry.","price"=> 600],
+            ["name"=>"Lemongrass","sinhala"=>"Sera - සේර","desc"=>"Strong citrus scent.","price"=>1500],
+            ["name"=>"Sri Lankan Ginger","sinhala"=>"Inguru - ඉඟුරු","desc"=>"Key curry base ingredient.(fresh)","price"=>1000],
+            ["name"=>"Garlic","sinhala"=>"Sudulunu - සුදුලුනු","desc"=>"Used in tempering and pastes.(fresh)","price"=>650],
+            ["name"=>"Ceylon Citron / Lemon","sinhala"=>"Dehi - දෙහි / පැංගිරි","desc"=>"Strong citrus rind and juice.(fresh, seasonal price)","price"=> 320],
         ],
 
         "Chilies & Heat Elements" => [
-            ["name"=>"Ceylon Chili / Bird's Eye Chili","sinhala"=>"Kochchi - කොච්චි","desc"=>"Very spicy small chili.","price"=>7800],
-            ["name"=>"Chili Powder","sinhala"=>"Kochchi Thool - මිරිස් ‌කුඩු","desc"=>"Ground dried chilies.","price"=>7800],
-            ["name"=>"Black Mustard Seeds","sinhala"=>"Aba Kalu - අබ ‌කුඩු","desc"=>"Adds heat in paste form.","price"=>7800],
+            ["name"=>"Ceylon Chili / Bird's Eye Chili","sinhala"=>"Kochchi - කොච්චි","desc"=>"Very spicy small chili.(dried)","price"=> 1400],
+            ["name"=>"Chili Powder","sinhala"=>"Kochchi Thool - මිරිස් ‌කුඩු","desc"=>"Ground dried chilies.","price"=> 1600],
+            ["name"=>"Black Mustard Seeds","sinhala"=>"Aba Kalu - අබ ‌කුඩු","desc"=>"Adds heat in paste form.","price"=> 1400],
         ],
 
         "Specialty & Regional Spices" => [
-            ["name"=>"Goraka","sinhala"=>"Goraka - ගොරකා","desc"=>"Used for sourness in fish curries.","price"=>7800],
-            ["name"=>"Tamarind","sinhala"=>"Siyambala - සියඹලා","desc"=>"Sharp fruity sourness.","price"=>7800],
-            ["name"=>"Screw Pine / Kewra","sinhala"=>"Wathakesi - වතකෙසි","desc"=>"Used in sweets.","price"=>7800],
-            ["name"=>"Licorice Powder","sinhala"=>"Walmee Kudu - වැල්මී කුඩු","desc"=>"Used in Ayurveda.","price"=>7800],
-            ["name"=>"Annatto Seeds","sinhala"=>"Kurkuman - කුර්කුමන්","desc"=>"Natural coloring spice.","price"=>7800],
-            ["name"=>"Ajwain (Carom Seeds)","sinhala"=>"Asamodagam - අසමෝදගම්","desc"=>"Strong herbal flavor.","price"=>7800],
-            ["name"=>"Dill","sinhala"=>"Endaru - එන්‌ඩරු","desc"=>"Used in sambols and salads.","price"=>7800],
-            ["name"=>"Sweet Flag","sinhala"=>"Wadakaha - වදකහ","desc"=>"Medicinal herb.","price"=>7800],
+            ["name"=>"Goraka","sinhala"=>"Goraka - ගොරකා","desc"=>"Used for sourness in fish curries.(dried)","price"=>1700],
+            ["name"=>"Tamarind","sinhala"=>"Siyambala - සියඹලා","desc"=>"Sharp fruity sourness.(pulp)","price"=>1200],
+            ["name"=>"Screw Pine / Kewra","sinhala"=>"Wathakesi - වතකෙසි","desc"=>"Used in sweets.(essence equivalent)","price"=>4000],
+            ["name"=>"Licorice Powder","sinhala"=>"Walmee Kudu - වැල්මී කුඩු","desc"=>"Used in Ayurveda.(premium medicinal)","price"=> 5500],
+            ["name"=>"Annatto Seeds","sinhala"=>"Kurkuman - කුර්කුමන්","desc"=>"Natural coloring spice.","price"=> 3000],
+            ["name"=>"Ajwain (Carom Seeds)","sinhala"=>"Asamodagam - අසමෝදගම්","desc"=>"Strong herbal flavor.","price"=>2000],
+            ["name"=>"Dill","sinhala"=>"Endaru - එන්‌ඩරු","desc"=>"Used in sambols and salads.","price"=>1800],
+            ["name"=>"Sweet Flag","sinhala"=>"Wadakaha - වදකහ","desc"=>"Medicinal herb.(medicinal rarity)","price"=>4000],
         ],
 
         "Spice Blends" => [
-            ["name"=>"Roasted Curry Powder","sinhala"=>"Badapu Thunapaha Kudu - බැදපු ‌තුනපහ කුඩු","desc"=>"Dark, fragrant curry powder.","price"=>7800],
-            ["name"=>"Unroasted Curry Powder","sinhala"=>"Amu Thuna Paha Kudu - අමු ‌තුනපහ කුඩු","desc"=>"Lighter curry blend.","price"=>7800],
-            ["name"=>"Chili Paste","sinhala"=>"Kochchi Miris Hodi - කොච්චි මිරිස් හොදි","desc"=>"Base paste for curries.","price"=>7800],
+            ["name"=>"Roasted Curry Powder","sinhala"=>"Badapu Thunapaha Kudu - බැදපු ‌තුනපහ කුඩු","desc"=>"Dark, fragrant curry powder.","price"=> 1400],
+            ["name"=>"Unroasted Curry Powder","sinhala"=>"Amu Thuna Paha Kudu - අමු ‌තුනපහ කුඩු","desc"=>"Lighter curry blend.","price"=>1200],
+            ["name"=>"Chili Paste","sinhala"=>"Kochchi Miris Hodi - කොච්චි මිරිස් හොදි","desc"=>"Base paste for curries.","price"=>1700],
         ],
     ];
 
@@ -124,8 +124,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
         foreach ($items as $spice) {
 
-            $imageName = strtolower(str_replace(' ', '-', $spice['name']));
-            $imagePath = "../assets/images/".$imageName.".jpg";
+            $imageMappings = [
+    'Ajwain (Carom Seeds)' => 'Ajwain-(Carom Seeds)',
+    'Ceylon Citron / Lemon' => 'Ceylon -Citron-&-Lemon', 
+    'Ceylon Chili / Bird\'s Eye Chili' => 'Ceylon-Chili',
+    'Screw Pine / Kewra' => 'Screw-Pine-Kewra'
+];
+
+if (isset($imageMappings[$spice['name']])) {
+    $imagePath = "../assets/images/".$imageMappings[$spice['name']].".jpg";
+} else {
+    $imageName = strtolower(str_replace(' ', '-', $spice['name']));
+    $imagePath = "../assets/images/".$imageName.".jpg";
+}
 
             // GET THE CORRECT VIEW PAGE
             $viewFile = $viewPages[$spice['name']] ?? null;

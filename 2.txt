@@ -1,0 +1,89 @@
+SpiceCeylon/
+│
+├── index.php                             # Landing page (video + login/register)
+│
+├── config/
+│   ├── db.php
+│   ├── auth_check.php
+│   └── functions.php
+│
+├── auth/
+│   ├── login.php
+│   ├── register.php
+│   ├── logout.php
+│   ├── unauthorized.php
+│   └── auth.css
+│
+├── customer/
+│   ├── header.php
+│   ├── footer.php
+│
+│   ├── home.php                            # Main shop page showing all 31 spices
+│   ├── dashboard.php                       # NEW: Dashboard + Profile merged
+│   ├── cart.php
+│   ├── checkout.php
+│   ├── orders.php
+│   ├── request_product.php
+│   ├── messages.php
+│   ├── about.php                           # NEW PAGE: About Us
+│
+│   ├── products/                           # All 31 spice detailed pages
+│   │     ├── view_cinnamon.php
+│   │     ├── view_cardamom.php
+│   │     ├── view_cloves.php
+│   │     ├── view_pepper.php
+│   │     ├── view_nutmeg.php
+│   │     ├── view_turmeric.php
+│   │     ├── view_mace.php
+│   │     ├── view_ginger.php
+│   │     ├── view_vanilla.php
+│   │     ├── ...
+│   │     └── All 31 products
+│
+│   └── Folder Structure.txt                # (Optional notes)
+│
+├── farmer/
+│   ├── dashboard.php
+│   ├── add_product.php
+│   ├── manage_products.php
+│   ├── approve_requests.php
+│   ├── header.php
+│   ├── footer.php
+│
+├── admin/
+│   ├── dashboard.php
+│   ├── manage_users.php
+│   ├── manage_products.php
+│   ├── approve_requests.php
+│   ├── messages.php
+│   ├── sales_analytics.php
+│   ├── forecast_sales.php
+│   ├── header.php
+│   ├── footer.php
+│
+├── analytics/
+│   ├── sales_report.php
+│   └── forecast_sales.php
+│
+├── assets/
+│   ├── css/
+│   │   ├── home.css
+│   │   ├── dashboard.css
+│   │   ├── cart.css
+│   │   ├── orders.css
+│   │   ├── request.css
+│   │   ├── about.css
+│   │   └── view_product.css                # Shared for all 31 spice pages
+│   │
+│   ├── js/
+│   │   ├── home.js
+│   │   └── view_product.js                 # Shared JS for all spice pages
+│   │
+│   ├── icons/                              # (Optional icons folder)
+│   ├── images/
+│   │   └── profile_images/
+│   │
+│   └── videos/
+│       └── landing-video.mp4
+│
+└── README.md

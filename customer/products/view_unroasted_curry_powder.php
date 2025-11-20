@@ -8,21 +8,20 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
 include "../../config/db.php"; 
 
-$spice_id = 'cardamom';
-$spice_name = 'Cardamom';
-$spice_sinhala = 'Enasal - ඇනසල්';
-$spice_desc = 'Aromatic green cardamom pods with complex flavor, known as the "Queen of Spices".Both green and black cardamom are used, with green being more common for its intense aroma.';
+$spice_id = 'unroasted_curry_powder';
+$spice_name = 'Unroasted Curry Powder';
+$spice_sinhala = 'Amu Thuna Paha Kudu - අමු ‌තුනපහ කුඩු';
+$spice_desc = 'Mild and fragrant unroasted curry powder ideal for fish curries, white curries, and delicate dishes.';
 
 $prices = [
-    '10g Pods'  => 150,
-    '25g Pods'  => 350,
-    '50g Pods'  => 650,
-    '25g Powder' => 400,
-    '50g Powder' => 750
+    '100g'  => 160,
+    '250g'  => 350,
+    '500g'  => 650,
+    '1kg'   => 1200
 ];
 
-$default_price = $prices['25g Pods'];
-$spice_image = '../../assets/images/Cardamom1.jpg';
+$default_price = $prices['250g'];
+$spice_image = '../../assets/images/Unroasted-Curry-Powder1.jpg';
 
 // Review submit
 $review_submitted = false;
@@ -94,10 +93,10 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </div>
     </div>
     <div class="product-meta">
-        <p><strong>SKU:</strong> CAR-028</p>
-        <p><strong>Category:</strong> Premium Ceylon Spices</p>
-        <p><strong>Flavor Profile:</strong> Aromatic, Citrusy & Minty</p>
-        <p><strong>Best For:</strong> Curries, Biryani, Desserts, Tea</p>
+        <p><strong>SKU:</strong> UCP-025</p>
+        <p><strong>Category:</strong> Spice Blends</p>
+        <p><strong>Flavor Profile:</strong> Mild, Fragrant & Delicate</p>
+        <p><strong>Best For:</strong> Fish curries, White curries, Vegetable dishes</p>
         <p><strong>Share:</strong>
         <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode("https://yourwebsite.com"); ?>" target="_blank">
             <img src="../../assets/icons/facebook.png" alt="Facebook" class="share-icon">
@@ -143,11 +142,9 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </form>
     </div>
 </div>
-
 <script>
 const prices = <?php echo json_encode($prices); ?>;
 </script>
-<?php include "../footer.php"; ?>
 <script src="../../assets/js/view_product.js"></script>
 </body>
 </html>

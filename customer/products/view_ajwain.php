@@ -8,21 +8,21 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
 include "../../config/db.php"; 
 
-$spice_id = 'cardamom';
-$spice_name = 'Cardamom';
-$spice_sinhala = 'Enasal - ඇනසල්';
-$spice_desc = 'Aromatic green cardamom pods with complex flavor, known as the "Queen of Spices".Both green and black cardamom are used, with green being more common for its intense aroma.';
+$spice_id = 'ajwain';
+$spice_name = 'Ajwain (Carom Seeds)';
+$spice_sinhala = 'Asamodagam - අසමෝදගම්';
+$spice_desc = 'Aromatic carom seeds with thymol flavor, known for digestive properties and used in traditional remedies.';
 
 $prices = [
-    '10g Pods'  => 150,
-    '25g Pods'  => 350,
-    '50g Pods'  => 650,
-    '25g Powder' => 400,
-    '50g Powder' => 750
+    '25g'   => 70,
+    '50g'   => 130,
+    '100g'  => 240,
+    '250g'  => 550,
+    '500g'  => 1000
 ];
 
-$default_price = $prices['25g Pods'];
-$spice_image = '../../assets/images/Cardamom1.jpg';
+$default_price = $prices['100g'];
+$spice_image = '../../assets/images/Ajwain-(Carom Seeds).jpg';
 
 // Review submit
 $review_submitted = false;
@@ -94,10 +94,10 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </div>
     </div>
     <div class="product-meta">
-        <p><strong>SKU:</strong> CAR-028</p>
-        <p><strong>Category:</strong> Premium Ceylon Spices</p>
-        <p><strong>Flavor Profile:</strong> Aromatic, Citrusy & Minty</p>
-        <p><strong>Best For:</strong> Curries, Biryani, Desserts, Tea</p>
+        <p><strong>SKU:</strong> AJW-021</p>
+        <p><strong>Category:</strong> Medicinal & Digestive Spices</p>
+        <p><strong>Flavor Profile:</strong> Pungent & Thymol-like</p>
+        <p><strong>Common Uses:</strong> Digestive aid, Flatbreads, Pickles</p>
         <p><strong>Share:</strong>
         <a href="https://www.facebook.com/sharer/sharer.php?u=<?php echo urlencode("https://yourwebsite.com"); ?>" target="_blank">
             <img src="../../assets/icons/facebook.png" alt="Facebook" class="share-icon">
@@ -143,11 +143,9 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
         </form>
     </div>
 </div>
-
 <script>
 const prices = <?php echo json_encode($prices); ?>;
 </script>
-<?php include "../footer.php"; ?>
 <script src="../../assets/js/view_product.js"></script>
 </body>
 </html>
