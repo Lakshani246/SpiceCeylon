@@ -66,6 +66,19 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
         "Roasted Curry Powder" => "view_roasted_curry_powder.php",
         "Unroasted Curry Powder" => "view_unroasted_curry_powder.php",
         "Chili Paste" => "view_chili_paste.php",
+
+        // NEW SPICES
+        "Vanilla" => "view_vanilla.php",
+        "Sesame Seeds" => "view_sesame_seeds.php",
+        "Bay Leaves" => "view_bay_leaves.php",
+        "Star Anise" => "view_star_anise.php",
+        "Asafoetida" => "view_asafoetida.php",
+        "Celery Seeds" => "view_celery_seeds.php",
+        "Saffron" => "view_saffron.php",
+        "Poppy Seeds" => "view_poppy_seeds.php",
+        "Caraway Seeds" => "view_caraway_seeds.php",
+        "Juniper Berries" => "view_juniper_berries.php",
+        "Sumac" => "view_sumac.php"
     ];
 
     // CATEGORIES
@@ -75,13 +88,16 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
             ["name"=>"Cardamom","sinhala"=>"Enasal - එනසාල්","desc"=>"Green cardamom gives an intense aroma.(pods - very premium)","price"=>15000],
             ["name"=>"Cloves","sinhala"=>"Karabu Neti - කරාබු නැටි","desc"=>"Used in rice and meat dishes.","price"=>6000],
             ["name"=>"Nutmeg & Mace","sinhala"=>"Sadikka / Wasawasee - සාදික්කා / වසාවාසි","desc"=>"Warm, sweet flavor for desserts/curries.(nutmeg powder)","price"=> 8000],
-            ["name"=>"Black Pepper","sinhala"=>"Gammiris - ගම්මිරිස්","desc"=>"Sri Lanka’s famous pepper.","price"=>3800],
+            ["name"=>"Black Pepper","sinhala"=>"Gammiris - ගම්මිරිස්","desc"=>"Sri Lanka's famous pepper.","price"=>3800],
             ["name"=>"Cumin Seeds","sinhala"=>"Suduru - සුදුරු","desc"=>"Earthy spice used in curry powders.","price"=>1800],
             ["name"=>"Coriander Seeds","sinhala"=>"Kottamalli - කොත්තමල්ලි","desc"=>"Base for Sri Lankan curry powders.","price"=>1600],
             ["name"=>"Fennel Seeds","sinhala"=>"Maduru - මාදුරු","desc"=>"Sweet, aromatic spice.","price"=>2000],
             ["name"=>"Fenugreek Seeds","sinhala"=>"Uluhal - උලුහාල්","desc"=>"Used sparingly for bitter flavor.","price"=>2200],
             ["name"=>"Mustard Seeds","sinhala"=>"Aba - අබ","desc"=>"Used in tempering.","price"=>1400],
             ["name"=>"Turmeric","sinhala"=>"Kaha - කහ","desc"=>"Colorful earthy spice.","price"=>3000],
+            // NEW ADDITIONS
+            ["name"=>"Vanilla","sinhala"=>"Vanila - වැනිලා","desc"=>"Premium vanilla beans with rich aroma and flavor.","price"=>25000],
+            ["name"=>"Sesame Seeds","sinhala"=>"Tala - තල","desc"=>"Nutty seeds used in sweets and savory dishes.","price"=>1800],
         ],
 
         "Fresh Herbs & Aromatics" => [
@@ -91,6 +107,11 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
             ["name"=>"Sri Lankan Ginger","sinhala"=>"Inguru - ඉඟුරු","desc"=>"Key curry base ingredient.(fresh)","price"=>1000],
             ["name"=>"Garlic","sinhala"=>"Sudulunu - සුදුලුනු","desc"=>"Used in tempering and pastes.(fresh)","price"=>650],
             ["name"=>"Ceylon Citron / Lemon","sinhala"=>"Dehi - දෙහි / පැංගිරි","desc"=>"Strong citrus rind and juice.(fresh, seasonal price)","price"=> 320],
+            // NEW ADDITIONS
+            ["name"=>"Bay Leaves","sinhala"=>"Bae Kolaya - බේ කොළ","desc"=>"Aromatic leaves for soups and rice dishes.","price"=>900],
+            ["name"=>"Star Anise","sinhala"=>"Kaha Kudu - කහ කුඩු","desc"=>"Star-shaped spice with licorice flavor.","price"=>2200],
+            ["name"=>"Asafoetida","sinhala"=>"Perungayam - පෙරුන්ගායම්","desc"=>"Strong aromatic resin for digestive dishes.","price"=>3500],
+            ["name"=>"Celery Seeds","sinhala"=>"Asamodagam - අසමෝදගම්","desc"=>"Tiny seeds with intense celery flavor.","price"=>1900],
         ],
 
         "Chilies & Heat Elements" => [
@@ -108,6 +129,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
             ["name"=>"Ajwain (Carom Seeds)","sinhala"=>"Asamodagam - අසමෝදගම්","desc"=>"Strong herbal flavor.","price"=>2000],
             ["name"=>"Dill","sinhala"=>"Endaru - එන්‌ඩරු","desc"=>"Used in sambols and salads.","price"=>1800],
             ["name"=>"Sweet Flag","sinhala"=>"Wadakaha - වදකහ","desc"=>"Medicinal herb.(medicinal rarity)","price"=>4000],
+            // NEW ADDITIONS
+            ["name"=>"Saffron","sinhala"=>"Kunkuma - කුංකුම","desc"=>"The world's most precious spice for color and flavor.","price"=>85000],
+            ["name"=>"Poppy Seeds","sinhala"=>"Gas Kasa - ගස් කාසා","desc"=>"Tiny blue seeds with nutty flavor for baking.","price"=>2800],
+            ["name"=>"Caraway Seeds","sinhala"=>"Kala Jeera - කලා ජීර","desc"=>"Aromatic seeds with anise-like flavor for breads.","price"=>2400],
+            ["name"=>"Juniper Berries","sinhala"=>"Juniper - ජුනිපර්","desc"=>"Aromatic berries with pine flavor for meats.","price"=>3200],
+            ["name"=>"Sumac","sinhala"=>"Sumac - සුමැක්","desc"=>"Tangy crimson spice with lemony flavor.","price"=>2900],
         ],
 
         "Spice Blends" => [
@@ -125,18 +152,18 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
         foreach ($items as $spice) {
 
             $imageMappings = [
-    'Ajwain (Carom Seeds)' => 'Ajwain-(Carom Seeds)',
-    'Ceylon Citron / Lemon' => 'Ceylon -Citron-&-Lemon', 
-    'Ceylon Chili / Bird\'s Eye Chili' => 'Ceylon-Chili',
-    'Screw Pine / Kewra' => 'Screw-Pine-Kewra'
-];
+                'Ajwain (Carom Seeds)' => 'Ajwain-(Carom Seeds)',
+                'Ceylon Citron / Lemon' => 'Ceylon -Citron-&-Lemon', 
+                'Ceylon Chili / Bird\'s Eye Chili' => 'Ceylon-Chili',
+                'Screw Pine / Kewra' => 'Screw-Pine-Kewra'
+            ];
 
-if (isset($imageMappings[$spice['name']])) {
-    $imagePath = "../assets/images/".$imageMappings[$spice['name']].".jpg";
-} else {
-    $imageName = strtolower(str_replace(' ', '-', $spice['name']));
-    $imagePath = "../assets/images/".$imageName.".jpg";
-}
+            if (isset($imageMappings[$spice['name']])) {
+                $imagePath = "../assets/images/".$imageMappings[$spice['name']].".jpg";
+            } else {
+                $imageName = strtolower(str_replace(' ', '-', $spice['name']));
+                $imagePath = "../assets/images/".$imageName.".jpg";
+            }
 
             // GET THE CORRECT VIEW PAGE
             $viewFile = $viewPages[$spice['name']] ?? null;
@@ -147,7 +174,6 @@ if (isset($imageMappings[$spice['name']])) {
             echo '<p><strong>'.$spice['sinhala'].'</strong></p>';
             echo '<p>'.$spice['desc'].'</p>';
             echo '<p class="price"><strong>1kg Price:</strong> Rs. '.$spice['price'].'.00</p>';
-
 
             echo '<div class="card-controls">';
             if ($viewFile) {

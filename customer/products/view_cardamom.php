@@ -8,10 +8,28 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
 
 include "../../config/db.php"; 
 
-$spice_id = 'cardamom';
-$spice_name = 'Cardamom';
-$spice_sinhala = 'Enasal - ඇනසල්';
-$spice_desc = 'Aromatic green cardamom pods with complex flavor, known as the "Queen of Spices".Both green and black cardamom are used, with green being more common for its intense aroma.';
+// Get the actual product from database
+$product_query = mysqli_query($conn, "SELECT * FROM products WHERE name LIKE '%Cardamom%' OR name LIKE '%Enasal%' LIMIT 1");
+$product = mysqli_fetch_assoc($product_query);
+
+if (!$product) {
+    die("Cardamom product not found in database! Please check products table.");
+}
+
+// Use actual data from database
+$spice_id = $product['product_id'];
+$spice_name = $product['name'];
+$spice_desc = $product['description'];
+$product_price = $product['price'];
+$product_stock = $product['stock'];
+
+// USE VIEW PAGE SPECIFIC IMAGE
+$spice_image = '../../assets/images/Cardamom1.jpg';
+
+// If view image doesn't exist, fall back to database image
+if (!file_exists($spice_image)) {
+    $spice_image = '../../assets/images/' . $product['image'];
+}
 
 $prices = [
     '10g Pods'  => 150,
@@ -22,7 +40,7 @@ $prices = [
 ];
 
 $default_price = $prices['25g Pods'];
-$spice_image = '../../assets/images/Cardamom1.jpg';
+$spice_sinhala = 'Enasal - ඇනසල්';
 
 // Review submit
 $review_submitted = false;
@@ -85,12 +103,22 @@ $reviews_result = mysqli_query($conn, "SELECT * FROM product_reviews WHERE produ
                     <button data-size="<?php echo $size; ?>"><?php echo $size; ?></button>
                 <?php endforeach; ?>
             </div>
-            <div class="quantity-container">
-                <label>Quantity:</label>
-                <input type="number" id="quantity" value="1" min="1">
-            </div>
-            <p><strong>Price:</strong> Rs. <span id="display-price"><?php echo $default_price; ?>.00</span></p>
-            <button class="btn-add-cart" data-id="<?php echo $spice_id; ?>">Add to Cart</button>
+            <!-- ADD TO CART FORM -->
+<form method="POST" action="../add_to_cart.php">
+    <input type="hidden" name="product_id" value="<?php echo $spice_id; ?>">
+    
+    <div class="quantity-container">
+        <label>Quantity:</label>
+        <input type="number" name="quantity" id="quantity" value="1" min="1" max="<?php echo $product_stock; ?>">
+    </div>
+    
+    <p><strong>Price:</strong> Rs. <span id="display-price"><?php echo $default_price; ?>.00</span></p>
+    <p class="stock-info"><strong>In Stock:</strong> <?php echo $product_stock; ?> units</p>
+    
+    <button type="submit" name="add_to_cart" class="btn-add-cart">
+        Add to Cart
+    </button>
+</form>
         </div>
     </div>
     <div class="product-meta">
