@@ -1,48 +1,78 @@
 <?php
-// Suppress notices/warnings
-error_reporting(E_ERROR | E_PARSE);
 session_start();
 include "../config/db.php";
 
-$error = "";
+$error = ""; // FIXED: prevent undefined variable
 
-// Handle login form submission
+// If form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $email = $_POST['email'];
-    $password = $_POST['password'];
-    $role = $_POST['role'];
 
-    if ($role == "admin") {
-        $result = $conn->query("SELECT * FROM admins WHERE email='$email'");
-    } else {
-        $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role' AND is_registered=1");
+    $email = trim($_POST['email']);
+    $password = trim($_POST['password']);
+    $role = trim($_POST['role']); // customer / farmer / admin
+
+
+    // -------------------- ADMIN LOGIN --------------------
+    if ($role === "admin") {
+
+        $query = $conn->prepare("SELECT * FROM admins WHERE email = ?");
+        $query->bind_param("s", $email);
+        $query->execute();
+        $result = $query->get_result();
+
+        if ($result->num_rows === 1) {
+
+            $admin = $result->fetch_assoc();
+
+            if (password_verify($password, $admin['password'])) {
+
+                // Store correct session values
+                $_SESSION['admin_id'] = $admin['admin_id'];
+                $_SESSION['admin_name'] = $admin['username'];
+                $_SESSION['role'] = $admin['role']; // super_admin
+                $_SESSION['is_admin'] = true;
+
+                header("Location: ../admin/dashboard.php");
+                exit();
+            } 
+        }
+
+        $_SESSION['error'] = "Invalid admin credentials!";
+        header("Location: ../index.php");
+        exit();
     }
 
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        if (password_verify($password, $user['password'])) {
-            // Save session variables
-            if ($role == 'admin') {
-                $_SESSION['admin_id'] = $user['admin_id'];
-            } else {
-                $_SESSION['user_id'] = $user['user_id'];
-            }
-            $_SESSION['role'] = $role;
+    // ============================
+    // CUSTOMER / FARMER LOGIN
+    // ============================
+    else {
 
-            // Redirect based on role
-            if ($role == 'admin') {
-                header("Location: ../admin/dashboard.php");
-            } elseif ($role == 'farmer') {
-                header("Location: ../farmer/dashboard.php");
+        $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role' AND is_registered=1");
+
+        if ($result && $result->num_rows > 0) {
+
+            $user = $result->fetch_assoc();
+
+            if (password_verify($password, $user['password'])) {
+
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['role'] = $role;
+                $_SESSION['email'] = $email;
+
+                if ($role == "farmer") {
+                    header("Location: ../farmer/dashboard.php");
+                } else {
+                    header("Location: ../customer/home.php");
+                }
+                exit;
+
             } else {
-                header("Location: ../customer/home.php"); // UPDATED: customer first page
+                $error = "Incorrect password!";
             }
-            exit;
+
         } else {
-            $error = "Invalid password!";
+            $error = "User not found!";
         }
-    } else {
-        $error = "User not found!";
     }
 }
 ?>
@@ -134,6 +164,7 @@ button:hover { background-color:#a14c2e; }
                     <option value="customer">Customer</option>
                     <option value="farmer">Farmer</option>
                     <option value="admin">Admin</option>
+
                 </select>
             </div>
             <button type="submit">Login</button>

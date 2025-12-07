@@ -38,3 +38,16 @@ document.querySelector('.btn-add-cart').addEventListener('click', () => {
     alert(`Added ${qty} x ${selectedSize} of ${spiceId} to your cart!`);
     // TODO: replace with AJAX/PHP code
 });
+
+document.querySelectorAll('.size-option').forEach(btn => {
+    btn.addEventListener('click', function () {
+        let weight = this.getAttribute('data-weight');
+        let price = this.getAttribute('data-price');
+
+        document.getElementById('selected_weight').value = weight;
+        document.getElementById('selected_price').value = price;
+
+        document.getElementById('display-price').innerHTML = "Rs. " + price;
+    });
+});
+

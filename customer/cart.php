@@ -89,9 +89,11 @@ if (isset($_GET['remove'])) {
                                         <div class="card-body">
                                             <div class="row align-items-center">
                                                 <div class="col-md-2">
-                                                    <img src="../assets/images/products/<?php echo $item['image'] ?? 'default-spice.jpg'; ?>" 
+                                                    <!-- FIXED IMAGE PATH -->
+                                                    <img src="../assets/images/<?php echo $item['image'] ?? 'default-spice.jpg'; ?>" 
                                                          alt="<?php echo $item['name']; ?>" 
-                                                         class="product-image">
+                                                         class="product-image"
+                                                         onerror="this.src='../assets/images/default-spice.jpg'">
                                                 </div>
                                                 <div class="col-md-4">
                                                     <h5 class="product-name"><?php echo $item['name']; ?></h5>

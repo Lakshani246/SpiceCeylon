@@ -18,8 +18,8 @@ $customer_stmt->execute();
 $customer_result = $customer_stmt->get_result();
 $customer = $customer_result->fetch_assoc();
 
-// Get recent orders
-$orders_query = "SELECT * FROM orders WHERE customer_id = ? ORDER BY order_date DESC LIMIT 5";
+// Get recent orders - FIXED: using correct column names
+$orders_query = "SELECT order_id, final_total, status, created_at FROM orders WHERE customer_id = ? ORDER BY order_id DESC LIMIT 5";
 $orders_stmt = $conn->prepare($orders_query);
 $orders_stmt->bind_param("i", $customer_id);
 $orders_stmt->execute();
@@ -203,21 +203,21 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                                 <div class="row no-gutters align-items-center">
                                     <div class="col mr-2">
                                         <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                            Product Requests</div>
+                                            Total Spent</div>
                                         <div class="h5 mb-0 font-weight-bold text-gray-800">
                                             <?php 
-                                                $requests_query = "SELECT COUNT(*) as requests FROM requests WHERE customer_id = ?";
-                                                $stmt = $conn->prepare($requests_query);
+                                                $total_spent_query = "SELECT COALESCE(SUM(final_total), 0) as total_spent FROM orders WHERE customer_id = ? AND status != 'Cancelled'";
+                                                $stmt = $conn->prepare($total_spent_query);
                                                 $stmt->bind_param("i", $customer_id);
                                                 $stmt->execute();
                                                 $result = $stmt->get_result();
-                                                $total_requests = $result->fetch_assoc()['requests'];
-                                                echo $total_requests;
+                                                $total_spent = $result->fetch_assoc()['total_spent'];
+                                                echo 'Rs. ' . number_format($total_spent, 2);
                                             ?>
                                         </div>
                                     </div>
                                     <div class="col-auto">
-                                        <i class="fas fa-plus-circle fa-2x text-gray-300"></i>
+                                        <i class="fas fa-coins fa-2x text-gray-300"></i>
                                     </div>
                                 </div>
                             </div>
@@ -249,15 +249,17 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                                             <tbody>
                                                 <?php while($order = $orders_result->fetch_assoc()): ?>
                                                 <tr>
-                                                    <td>#<?php echo $order['order_id']; ?></td>
-                                                    <td>Rs. <?php echo number_format($order['total'], 2); ?></td>
+                                                    <td>#<?php echo str_pad($order['order_id'], 6, '0', STR_PAD_LEFT); ?></td>
+                                                    <td class="fw-bold text-success">Rs. <?php echo number_format($order['final_total'], 2); ?></td>
                                                     <td>
                                                         <span class="badge 
                                                             <?php 
                                                                 switch($order['status']) {
-                                                                    case 'Completed': echo 'bg-success'; break;
+                                                                    case 'Delivered': echo 'bg-success'; break;
+                                                                    case 'Shipped': echo 'bg-info'; break;
                                                                     case 'Processing': echo 'bg-primary'; break;
-                                                                    case 'Pending': echo 'bg-warning'; break;
+                                                                    case 'Confirmed': echo 'bg-warning'; break;
+                                                                    case 'Pending': echo 'bg-secondary'; break;
                                                                     default: echo 'bg-danger';
                                                                 }
                                                             ?>
@@ -265,9 +267,17 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                                                             <?php echo $order['status']; ?>
                                                         </span>
                                                     </td>
-                                                    <td><?php echo date('M j, Y', strtotime($order['order_date'])); ?></td>
                                                     <td>
-                                                        <a href="orders.php?view=<?php echo $order['order_id']; ?>" class="btn btn-sm btn-outline-primary">
+                                                        <?php 
+                                                            if (isset($order['created_at'])) {
+                                                                echo date('M j, Y', strtotime($order['created_at']));
+                                                            } else {
+                                                                echo 'N/A';
+                                                            }
+                                                        ?>
+                                                    </td>
+                                                    <td>
+                                                        <a href="orders.php?order_id=<?php echo $order['order_id']; ?>" class="btn btn-sm btn-outline-primary">
                                                             View
                                                         </a>
                                                     </td>
@@ -278,7 +288,11 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                                     </div>
                                     <a href="orders.php" class="btn btn-primary btn-sm">View All Orders</a>
                                 <?php else: ?>
-                                    <p class="text-muted">No orders yet. <a href="home.php">Start shopping!</a></p>
+                                    <div class="text-center py-4">
+                                        <i class="fas fa-shopping-bag fa-2x text-muted mb-3"></i>
+                                        <p class="text-muted">No orders yet.</p>
+                                        <a href="home.php" class="btn btn-primary">Start Shopping</a>
+                                    </div>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -291,28 +305,38 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                                 <h6 class="m-0 font-weight-bold text-primary">Profile Summary</h6>
                             </div>
                             <div class="card-body">
-                                <!-- In your dashboard.php profile section -->
                                 <div class="text-center">
                                     <img class="img-profile rounded-circle mb-3" 
-                                        src="../assets/images/profile-image.jpg?php echo !empty($user['profile_image']) ? $user['profile_image'] : 'default-profile-image.jpg'; ?>" 
-                                          alt="Profile" 
+                                        src="../assets/images/<?php echo !empty($customer['profile_image']) ? 'profile_images/' . $customer['profile_image'] : 'default-profile.jpg'; ?>" 
+                                        alt="Profile" 
                                         style="width: 100px; height: 100px; object-fit: cover; border: 2px solid #b85c38;">
-                                    <h5 class="font-weight-bold"><?php echo htmlspecialchars($user['name']); ?></h5>
-                                    </div>
+                                    <h5 class="font-weight-bold"><?php echo htmlspecialchars($customer['name']); ?></h5>
+                                    <p class="text-muted"><?php echo htmlspecialchars($customer['email']); ?></p>
+                                </div>
                                 <div class="row text-center">
                                     <div class="col-6">
                                         <strong class="d-block">Phone</strong>
-                                        <small class="text-muted"><?php echo htmlspecialchars($customer['phone']); ?></small>
+                                        <small class="text-muted"><?php echo !empty($customer['phone']) ? htmlspecialchars($customer['phone']) : 'Not set'; ?></small>
                                     </div>
                                     <div class="col-6">
                                         <strong class="d-block">Member Since</strong>
-                                        <small class="text-muted"><?php echo date('M Y', strtotime($customer['created_at'])); ?></small>
+                                        <small class="text-muted">
+                                            <?php 
+                                                if (isset($customer['created_at'])) {
+                                                    echo date('M Y', strtotime($customer['created_at']));
+                                                } else {
+                                                    echo 'N/A';
+                                                }
+                                            ?>
+                                        </small>
                                     </div>
                                 </div>
                                 <hr>
                                 <div class="mb-3">
                                     <strong>Address:</strong>
-                                    <p class="text-muted small"><?php echo htmlspecialchars($customer['address']); ?></p>
+                                    <p class="text-muted small">
+                                        <?php echo !empty($customer['address']) ? htmlspecialchars($customer['address']) : 'No address set'; ?>
+                                    </p>
                                 </div>
                                 <a href="edit_profile.php" class="btn btn-primary btn-block">
                                     <i class="fas fa-edit me-1"></i>
