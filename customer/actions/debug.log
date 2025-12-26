@@ -1,0 +1,32 @@
+=== Add to Cart Debug ===
+Session started
+User ID: 1, Role: customer
+POST Data - Product ID: 1, Quantity: 1, Package: 1kg
+Database connected successfully
+Product found: Cinnamon, Stock: 200, Price: 450.00
+New cart item added successfully
+SUCCESS: Item added to cart
+=== Add to Cart Debug ===
+Session started
+User ID: 1, Role: customer
+POST Data - Product ID: 2, Quantity: 1, Package: 1kg
+Database connected successfully
+Product found: Cardamom, Stock: 150, Price: 1250.00
+New cart item added successfully
+SUCCESS: Item added to cart
+=== Add to Cart Debug ===
+Session started
+User ID: 1, Role: customer
+POST Data - Product ID: 2, Quantity: 1, Package: 50g
+Database connected successfully
+Product found: Cardamom, Stock: 150, Price: 1250.00
+Cart item updated successfully
+SUCCESS: Item added to cart
+=== Add to Cart Debug ===
+Session started
+User ID: 1, Role: customer
+POST Data - Product ID: 36, Quantity: 1, Package: 1kg
+Database connected successfully
+Product found: Saffron, Stock: 30, Price: 8500.00
+New cart item added successfully
+SUCCESS: Item added to cart

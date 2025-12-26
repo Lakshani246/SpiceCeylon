@@ -12,7 +12,6 @@ $user_id = $_SESSION['user_id'];
 if (isset($_GET['delete_order']) && isset($_GET['order_id'])) {
     $order_id_to_delete = intval($_GET['order_id']);
     
-    // Check if order belongs to this customer and is still pending
     $check_query = "SELECT status FROM orders WHERE order_id = ? AND customer_id = ?";
     $check_stmt = $conn->prepare($check_query);
     $check_stmt->bind_param("ii", $order_id_to_delete, $user_id);
@@ -22,13 +21,11 @@ if (isset($_GET['delete_order']) && isset($_GET['order_id'])) {
     if ($check_result->num_rows > 0) {
         $order_data = $check_result->fetch_assoc();
         if ($order_data['status'] === 'Pending') {
-            // Delete order items first (due to foreign key constraint)
             $delete_items_query = "DELETE FROM order_items WHERE order_id = ?";
             $delete_items_stmt = $conn->prepare($delete_items_query);
             $delete_items_stmt->bind_param("i", $order_id_to_delete);
             $delete_items_stmt->execute();
             
-            // Then delete the order
             $delete_order_query = "DELETE FROM orders WHERE order_id = ? AND customer_id = ?";
             $delete_order_stmt = $conn->prepare($delete_order_query);
             $delete_order_stmt->bind_param("ii", $order_id_to_delete, $user_id);
@@ -43,7 +40,6 @@ if (isset($_GET['delete_order']) && isset($_GET['order_id'])) {
         }
     }
     
-    // Redirect back to orders page
     header("Location: orders.php");
     exit;
 }
@@ -79,7 +75,7 @@ if ($order_id) {
 
     if ($order_details) {
         $order_items_query = "
-            SELECT oi.*, p.name, p.image 
+            SELECT oi.*, p.name, p.image, p.category 
             FROM order_items oi 
             JOIN products p ON oi.product_id = p.product_id 
             WHERE oi.order_id = '$order_id'
@@ -99,401 +95,594 @@ if ($order_id) {
     <title>My Orders - SpiceCeylon</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #b85c38;
-            --secondary: #d17a50;
-            --light: #f8f0e9;
-            --dark: #2c1810;
-            --success: #28a745;
-            --warning: #ffc107;
-            --danger: #dc3545;
-        }
-        
-        * {
-            font-family: 'Poppins', sans-serif;
+            --spice-red: #b85c38;
+            --spice-dark: #2c3e50;
+            --spice-green: #27ae60;
+            --spice-gold: #f39c12;
+            --spice-blue: #3498db;
+            --spice-light: #f8f9fa;
         }
         
         body {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--spice-light);
+            color: #333;
+            padding-bottom: 50px;
         }
         
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 15px 0;
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--spice-red) !important;
+            font-size: 1.5rem;
+        }
+        
+        .nav-link {
+            color: var(--spice-dark) !important;
+            font-weight: 500;
+            margin: 0 10px;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            color: var(--spice-red) !important;
+        }
+        
+        /* Orders Container */
         .orders-container {
             max-width: 1200px;
-            margin: 0 auto;
+            margin: 40px auto;
+            padding: 0 20px;
         }
         
+        /* Header */
+        .orders-header {
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        
+        .orders-header h1 {
+            color: var(--spice-dark);
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .orders-header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        /* Order Card */
         .order-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-            border-radius: 15px;
-            overflow: hidden;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
-            border: 1px solid #eaeaea;
             background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            margin-bottom: 25px;
+            border: 1px solid #e9ecef;
+            overflow: hidden;
+            transition: all 0.3s ease;
         }
         
         .order-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            border-color: var(--primary);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            transform: translateY(-3px);
         }
         
+        .order-card-header {
+            background: rgba(184, 92, 56, 0.1);
+            padding: 20px;
+            border-bottom: 2px solid rgba(184, 92, 56, 0.2);
+        }
+        
+        .order-card-body {
+            padding: 25px;
+        }
+        
+        /* Status Badges */
         .status-badge {
-            font-size: 0.8rem;
-            padding: 0.4rem 1rem;
-            border-radius: 50px;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .status-pending { background: rgba(149, 165, 166, 0.2); color: #636e72; }
+        .status-confirmed { background: rgba(184, 92, 56, 0.2); color: var(--spice-red); }
+        .status-processing { background: rgba(52, 152, 219, 0.2); color: var(--spice-blue); }
+        .status-shipped { background: rgba(155, 89, 182, 0.2); color: #8e44ad; }
+        .status-delivered { background: rgba(39, 174, 96, 0.2); color: var(--spice-green); }
+        .status-cancelled { background: rgba(231, 76, 60, 0.2); color: #e74c3c; }
+        
+        /* Order Items */
+        .order-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+        
+        .order-item:hover {
+            background: rgba(184, 92, 56, 0.05);
+        }
+        
+        .order-item:last-child {
+            border-bottom: none;
         }
         
         .order-item-image {
-            width: 60px;
-            height: 60px;
+            width: 80px;
+            height: 80px;
             object-fit: cover;
-            border-radius: 10px;
-            border: 2px solid var(--light);
+            border-radius: 8px;
+            border: 2px solid #e9ecef;
+            margin-right: 20px;
         }
         
-        .form-control, .form-select {
-            border-radius: 10px;
-            padding: 12px;
-            border: 2px solid #eaeaea;
-            transition: all 0.3s ease;
+        .order-item-details {
+            flex: 1;
         }
         
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 0.25rem rgba(184, 92, 56, 0.25);
-        }
-        
-        .btn-primary {
-            background-color: var(--primary);
-            border-color: var(--primary);
-            padding: 10px 25px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            border-radius: 10px;
-        }
-        
-        .btn-primary:hover {
-            background-color: var(--secondary);
-            border-color: var(--secondary);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(184, 92, 56, 0.2);
-        }
-        
-        .btn-danger {
-            background: linear-gradient(135deg, var(--danger), #e74c3c);
-            border: none;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-        }
-        
-        .btn-danger:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
-        }
-        
-        .btn-outline-primary {
-            border-color: var(--primary);
-            color: var(--primary);
-            border-radius: 10px;
-        }
-        
-        .btn-outline-primary:hover {
-            background-color: var(--primary);
-            border-color: var(--primary);
-            color: white;
-        }
-        
-        .card-header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-            border-radius: 15px 15px 0 0 !important;
-            padding: 20px;
-        }
-        
-        .breadcrumb-item.active {
-            color: var(--primary);
+        .order-item-name {
             font-weight: 600;
+            color: var(--spice-dark);
+            margin-bottom: 5px;
+            font-size: 1.1rem;
         }
         
-        .table-hover tbody tr:hover {
-            background-color: rgba(184, 92, 56, 0.05);
-        }
-        
-        .section-header {
-            border-bottom: 3px solid var(--light);
-            padding-bottom: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .action-buttons .btn {
-            margin-right: 0.5rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .timeline-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
+        .order-item-category {
+            background: rgba(184, 92, 56, 0.1);
+            color: var(--spice-red);
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 500;
             display: inline-block;
             margin-right: 10px;
         }
         
-        .pending-dot { background-color: #6c757d; }
-        .confirmed-dot { background-color: var(--primary); }
-        .processing-dot { background-color: #17a2b8; }
-        .shipped-dot { background-color: var(--warning); }
-        .delivered-dot { background-color: var(--success); }
+        .order-item-quantity {
+            color: #666;
+            font-size: 0.9rem;
+        }
         
-        .modal-content {
-            border-radius: 15px;
-            overflow: hidden;
+        .order-item-quantity .badge {
+            background: var(--spice-blue);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 10px;
+        }
+        
+        .order-item-price {
+            font-weight: 700;
+            color: var(--spice-green);
+            font-size: 1.2rem;
+        }
+        
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding: 20px 0;
+        }
+        
+        .timeline-step {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        
+        .timeline-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .timeline-dot.active {
+            background: var(--spice-red);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(184, 92, 56, 0.2);
+        }
+        
+        .timeline-dot.completed {
+            background: var(--spice-green);
+            color: white;
+        }
+        
+        .timeline-dot.pending {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .timeline-content {
+            flex: 1;
+        }
+        
+        .timeline-content h6 {
+            font-weight: 600;
+            color: var(--spice-dark);
+            margin-bottom: 2px;
+        }
+        
+        .timeline-content p {
+            color: #666;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        
+        /* Summary Card */
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            padding: 25px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 25px;
+        }
+        
+        .summary-header {
+            border-bottom: 2px solid rgba(184, 92, 56, 0.2);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-header h4 {
+            color: var(--spice-dark);
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px dashed #e9ecef;
+        }
+        
+        .summary-total {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--spice-red);
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 2px solid rgba(184, 92, 56, 0.2);
+        }
+        
+        /* Buttons */
+        .btn-spice {
+            background: var(--spice-red);
+            color: white;
             border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-spice:hover {
+            background: #a04a2c;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(184, 92, 56, 0.3);
+        }
+        
+        .btn-spice-outline {
+            color: var(--spice-red);
+            border: 2px solid var(--spice-red);
+            background: transparent;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-spice-outline:hover {
+            background: var(--spice-red);
+            color: white;
+        }
+        
+        .btn-danger-outline {
+            color: #e74c3c;
+            border: 2px solid #e74c3c;
+            background: transparent;
+            padding: 8px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-danger-outline:hover {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        /* Empty State */
+        .empty-orders {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 12px;
+            border: 2px dashed #e9ecef;
+            margin: 40px 0;
+        }
+        
+        .empty-orders-icon {
+            font-size: 5rem;
+            color: #e9ecef;
+            margin-bottom: 20px;
+        }
+        
+        .empty-orders h3 {
+            color: var(--spice-dark);
+            margin-bottom: 10px;
+        }
+        
+        .empty-orders p {
+            color: #666;
+            margin-bottom: 30px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* Modal */
+        .modal-content {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
         }
         
         .modal-header {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            background: var(--spice-red);
             color: white;
+            border-radius: 12px 12px 0 0;
+            padding: 20px;
         }
         
+        .modal-header .btn-close {
+            filter: invert(1);
+            opacity: 0.8;
+        }
+        
+        .modal-body {
+            padding: 25px;
+        }
+        
+        /* Alert */
         .alert {
-            border-radius: 10px;
+            border-radius: 8px;
             border: none;
+            padding: 15px 20px;
         }
         
-        .empty-state {
-            padding: 4rem;
-            text-align: center;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+        .alert-success {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--spice-green);
+            border-left: 4px solid var(--spice-green);
         }
         
-        .table-responsive {
-            border-radius: 10px;
-            overflow: hidden;
+        .alert-danger {
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border-left: 4px solid #e74c3c;
         }
         
-        .table thead {
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            color: white;
-        }
-        
-        .table th {
-            border: none;
-            padding: 1rem;
-        }
-        
-        .table td {
-            padding: 1rem;
-            vertical-align: middle;
-        }
-        
-        .badge-pill {
-            border-radius: 50px;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .order-item {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .order-item-image {
+                margin-right: 0;
+                margin-bottom: 15px;
+            }
+            
+            .timeline-step {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .timeline-dot {
+                margin-right: 0;
+                margin-bottom: 10px;
+            }
         }
     </style>
 </head>
 <body>
-    <?php include 'header.php'; ?>
-
-    <div class="container py-5">
-        <div class="orders-container">
-            <!-- Success/Error Messages -->
-            <?php if (isset($_SESSION['success_message'])): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle me-2"></i>
-                    <?php echo $_SESSION['success_message']; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                <?php unset($_SESSION['success_message']); ?>
-            <?php endif; ?>
-            
-            <?php if (isset($_SESSION['error_message'])): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i>
-                    <?php echo $_SESSION['error_message']; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-                <?php unset($_SESSION['error_message']); ?>
-            <?php endif; ?>
-
-            <!-- Breadcrumb Navigation -->
-            <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="home.php" class="text-decoration-none"><i class="fas fa-home me-1"></i>Home</a></li>
-                    <li class="breadcrumb-item active"><i class="fas fa-shopping-bag me-1"></i>My Orders</li>
-                </ol>
-            </nav>
-            
-            <!-- Page Header -->
-            <div class="section-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1 class="fw-bold mb-2" style="color: var(--primary);">
-                            <i class="fas fa-history me-2"></i>My Orders
-                        </h1>
-                        <p class="text-muted mb-0">View and manage your order history</p>
-                    </div>
-                    <a href="home.php" class="btn btn-outline-primary">
-                        <i class="fas fa-store me-2"></i>Continue Shopping
-                    </a>
-                </div>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="home.php">
+                <i class="fas fa-pepper-hot me-2"></i>SpiceCeylon
+            </a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="home.php">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link" href="cart.php">Cart</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="orders.php">Orders</a></li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-1"></i>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="profile.php"><i class="fas fa-user me-2"></i> Profile</a></li>
+                            <li><a class="dropdown-item" href="wishlist.php"><i class="fas fa-heart me-2"></i> Wishlist</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="../auth/logout.php"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
             </div>
+        </div>
+    </nav>
 
-            <?php if ($order_id && $order_details): ?>
-                <!-- ========== ORDER DETAILS VIEW ========== -->
-                <div class="row">
-                    <div class="col-12">
-                        <!-- Back Button -->
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <div>
-                                <h2 class="fw-bold mb-1" style="color: var(--primary);">
-                                    Order #<?php echo str_pad($order_details['order_id'], 6, '0', STR_PAD_LEFT); ?>
-                                </h2>
-                                <p class="text-muted mb-0">
-                                    <i class="fas fa-calendar me-1"></i>
-                                    <?php echo date('F j, Y g:i A', strtotime($order_details['order_date'])); ?>
-                                </p>
-                            </div>
-                            <div class="action-buttons">
-                                <?php if ($order_details['status'] === 'Pending'): ?>
-                                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $order_details['order_id']; ?>">
-                                        <i class="fas fa-trash me-1"></i>Cancel Order
-                                    </button>
-                                <?php endif; ?>
-                                <a href="orders.php" class="btn btn-outline-secondary">
-                                    <i class="fas fa-arrow-left me-2"></i>Back to Orders
-                                </a>
-                            </div>
+    <!-- Orders Container -->
+    <div class="orders-container">
+        <div class="orders-header">
+            <h1><i class="fas fa-history me-2"></i>My Orders</h1>
+            <p>Track and manage all your spice purchases in one place</p>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <?php if (isset($_SESSION['success_message'])): ?>
+            <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                <i class="fas fa-check-circle me-2"></i>
+                <?php echo $_SESSION['success_message']; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <?php unset($_SESSION['success_message']); ?>
+        <?php endif; ?>
+        
+        <?php if (isset($_SESSION['error_message'])): ?>
+            <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                <i class="fas fa-exclamation-circle me-2"></i>
+                <?php echo $_SESSION['error_message']; ?>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            <?php unset($_SESSION['error_message']); ?>
+        <?php endif; ?>
+
+        <!-- Back to Orders List Button (for order details view) -->
+        <?php if ($order_id && $order_details): ?>
+            <div class="mb-4">
+                <a href="orders.php" class="btn btn-spice-outline">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Orders
+                </a>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($order_id && $order_details): ?>
+            <!-- ========== ORDER DETAILS VIEW ========== -->
+            <div class="order-card">
+                <div class="order-card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h2 class="mb-1">Order #<?php echo str_pad($order_details['order_id'], 6, '0', STR_PAD_LEFT); ?></h2>
+                            <p class="text-muted mb-0">
+                                <i class="fas fa-calendar-alt me-1"></i>
+                                <?php echo date('F j, Y g:i A', strtotime($order_details['created_at'])); ?>
+                            </p>
                         </div>
-
-                        <!-- Order Status Timeline -->
-                        <div class="card mb-4 order-card">
-                            <div class="card-header">
-                                <h4 class="mb-0"><i class="fas fa-truck me-2"></i>Order Status</h4>
-                            </div>
-                            <div class="card-body">
-                                <?php
-                                $statuses = [
-                                    'Pending' => ['icon' => 'fa-clock', 'color' => 'secondary', 'dot' => 'pending-dot'],
-                                    'Confirmed' => ['icon' => 'fa-check', 'color' => 'primary', 'dot' => 'confirmed-dot'],
-                                    'Processing' => ['icon' => 'fa-cog', 'color' => 'info', 'dot' => 'processing-dot'],
-                                    'Shipped' => ['icon' => 'fa-truck', 'color' => 'warning', 'dot' => 'shipped-dot'],
-                                    'Delivered' => ['icon' => 'fa-box', 'color' => 'success', 'dot' => 'delivered-dot']
-                                ];
-                                
-                                $current_status = $order_details['status'];
-                                ?>
-                                <div class="d-flex justify-content-between text-center flex-wrap">
-                                    <?php foreach ($statuses as $status => $info): ?>
-                                        <div class="flex-fill px-2 mb-3">
-                                            <div class="mb-2">
-                                                <span class="timeline-dot <?php echo $info['dot']; ?>"></span>
-                                                <i class="fas <?php echo $info['icon']; ?> fa-2x text-<?php 
-                                                    echo array_search($status, array_keys($statuses)) <= array_search($current_status, array_keys($statuses)) 
-                                                    ? $info['color'] : 'secondary'; 
-                                                ?>"></i>
-                                            </div>
-                                            <small class="fw-bold d-block"><?php echo $status; ?></small>
-                                            <?php if ($status === $current_status): ?>
-                                                <small class="text-success"><i class="fas fa-check me-1"></i>Current</small>
-                                            <?php endif; ?>
-                                        </div>
-                                    <?php endforeach; ?>
+                        <div>
+                            <?php if ($order_details['status'] === 'Pending'): ?>
+                                <button type="button" class="btn btn-danger-outline" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $order_details['order_id']; ?>">
+                                    <i class="fas fa-times-circle me-2"></i>Cancel Order
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="order-card-body">
+                    <!-- Timeline -->
+                    <div class="mb-5">
+                        <h4 class="mb-4"><i class="fas fa-truck me-2"></i>Order Status</h4>
+                        <div class="timeline">
+                            <?php
+                            $statuses = [
+                                'Pending' => ['icon' => 'fa-clock', 'class' => 'pending'],
+                                'Confirmed' => ['icon' => 'fa-check', 'class' => $order_details['status'] == 'Pending' ? 'pending' : 'completed'],
+                                'Processing' => ['icon' => 'fa-cog', 'class' => in_array($order_details['status'], ['Pending', 'Confirmed']) ? 'pending' : 'completed'],
+                                'Shipped' => ['icon' => 'fa-shipping-fast', 'class' => in_array($order_details['status'], ['Pending', 'Confirmed', 'Processing']) ? 'pending' : 'completed'],
+                                'Delivered' => ['icon' => 'fa-box-open', 'class' => 'completed']
+                            ];
+                            
+                            $currentStatus = $order_details['status'];
+                            foreach ($statuses as $status => $info): 
+                                $isActive = $currentStatus == $status;
+                                $dotClass = $isActive ? 'active' : $info['class'];
+                            ?>
+                            <div class="timeline-step">
+                                <div class="timeline-dot <?php echo $dotClass; ?>">
+                                    <i class="fas <?php echo $info['icon']; ?>"></i>
+                                </div>
+                                <div class="timeline-content">
+                                    <h6><?php echo $status; ?></h6>
+                                    <?php if ($isActive): ?>
+                                        <p class="text-success"><i class="fas fa-circle me-1" style="font-size: 0.6rem;"></i> Current Status</p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
+                            <?php endforeach; ?>
                         </div>
+                    </div>
 
-                        <!-- Order Items Table -->
-                        <div class="card mb-4 order-card">
-                            <div class="card-header">
-                                <h4 class="mb-0"><i class="fas fa-shopping-basket me-2"></i>Order Items</h4>
-                            </div>
-                            <div class="card-body p-0">
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th width="10%">Image</th>
-                                                <th width="30%">Product</th>
-                                                <th width="15%" class="text-center">Quantity</th>
-                                                <th width="15%" class="text-end">Unit Price</th>
-                                                <th width="15%" class="text-end">Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($order_items as $item): ?>
-                                            <tr>
-                                                <td>
-                                                    <img src="../assets/images/<?php echo $item['image']; ?>" 
-                                                         alt="<?php echo $item['name']; ?>" 
-                                                         class="order-item-image">
-                                                </td>
-                                                <td>
-                                                    <h6 class="mb-1 fw-bold"><?php echo $item['name']; ?></h6>
-                                                    <small class="text-muted">Product ID: <?php echo $item['product_id']; ?></small>
-                                                </td>
-                                                <td class="text-center">
-                                                    <span class="badge bg-primary rounded-pill"><?php echo $item['quantity']; ?></span>
-                                                </td>
-                                                <td class="text-end">
-                                                    <span class="text-muted">Rs. </span><?php echo number_format($item['price'], 2); ?>
-                                                </td>
-                                                <td class="text-end fw-bold" style="color: var(--primary);">
-                                                    Rs. <?php echo number_format($item['total_price'], 2); ?>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
+                    <!-- Order Items -->
+                    <div class="mb-5">
+                        <h4 class="mb-4"><i class="fas fa-shopping-basket me-2"></i>Order Items</h4>
+                        <div class="order-items">
+                            <?php foreach ($order_items as $item): 
+                                $image_path = '';
+                                if ($item['image']) {
+                                    $image_name = basename($item['image']);
+                                    if (file_exists('../assets/images/' . $image_name)) {
+                                        $image_path = '../assets/images/' . $image_name;
+                                    } else {
+                                        $image_path = '../assets/images/default-spice.jpg';
+                                    }
+                                } else {
+                                    $image_path = '../assets/images/default-spice.jpg';
+                                }
+                            ?>
+                            <div class="order-item">
+                                <img src="<?php echo $image_path; ?>" 
+                                     alt="<?php echo htmlspecialchars($item['name']); ?>" 
+                                     class="order-item-image"
+                                     onerror="this.src='../assets/images/default-spice.jpg'">
                                 
-                                <!-- Order Totals -->
-                                <div class="p-4 border-top">
-                                    <div class="row">
-                                        <div class="col-md-8"></div>
-                                        <div class="col-md-4">
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>Subtotal:</span>
-                                                <span class="fw-bold">Rs. <?php echo number_format($order_details['total_amount'], 2); ?></span>
-                                            </div>
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>Shipping Fee:</span>
-                                                <span class="fw-bold">Rs. <?php echo number_format($order_details['shipping_fee'], 2); ?></span>
-                                            </div>
-                                            <div class="d-flex justify-content-between mb-2">
-                                                <span>Payment Method:</span>
-                                                <span class="badge bg-secondary"><?php echo ucwords(str_replace('_', ' ', $order_details['payment_method'])); ?></span>
-                                            </div>
-                                            <hr>
-                                            <div class="d-flex justify-content-between fw-bold fs-5 pt-2">
-                                                <span>Total Amount:</span>
-                                                <span style="color: var(--primary);">Rs. <?php echo number_format($order_details['final_total'], 2); ?></span>
-                                            </div>
-                                        </div>
+                                <div class="order-item-details">
+                                    <h5 class="order-item-name"><?php echo htmlspecialchars($item['name']); ?></h5>
+                                    <div class="mb-2">
+                                        <span class="order-item-category"><?php echo htmlspecialchars($item['category']); ?></span>
                                     </div>
+                                    <p class="order-item-quantity">
+                                        <span class="badge"><?php echo $item['quantity']; ?> kg</span> 
+                                        × Rs. <?php echo number_format($item['price'], 2); ?> / kg
+                                    </p>
+                                </div>
+                                
+                                <div class="order-item-price">
+                                    Rs. <?php echo number_format($item['total_price'], 2); ?>
                                 </div>
                             </div>
+                            <?php endforeach; ?>
                         </div>
+                    </div>
 
-                        <!-- Shipping Information -->
-                        <div class="card order-card">
-                            <div class="card-header">
-                                <h4 class="mb-0"><i class="fas fa-map-marker-alt me-2"></i>Shipping Information</h4>
-                            </div>
-                            <div class="card-body">
+                    <!-- Order Summary -->
+                    <div class="row">
+                        <div class="col-lg-8">
+                            <!-- Shipping Information -->
+                            <div class="summary-card">
+                                <div class="summary-header">
+                                    <h4><i class="fas fa-map-marker-alt me-2"></i>Shipping Information</h4>
+                                </div>
                                 <div class="row">
-                                    <div class="col-md-6">
-                                        <h6 class="text-muted mb-2">Recipient Details</h6>
-                                        <p class="mb-3">
-                                            <i class="fas fa-user me-2"></i>
+                                    <div class="col-md-6 mb-3">
+                                        <h6 class="text-muted mb-2">Recipient</h6>
+                                        <p class="mb-0">
                                             <strong><?php echo htmlspecialchars($order_details['shipping_name']); ?></strong><br>
                                             <small class="text-muted">
-                                                <i class="fas fa-phone me-2"></i>
+                                                <i class="fas fa-phone me-1"></i>
                                                 <?php echo htmlspecialchars($order_details['shipping_phone']); ?>
                                             </small>
                                         </p>
@@ -501,10 +690,9 @@ if ($order_id) {
                                     <div class="col-md-6">
                                         <h6 class="text-muted mb-2">Delivery Address</h6>
                                         <p class="mb-0">
-                                            <i class="fas fa-home me-2"></i>
                                             <?php echo htmlspecialchars($order_details['shipping_address']); ?><br>
-                                            <span class="ms-4">
-                                                <?php echo htmlspecialchars($order_details['shipping_city']); ?>, 
+                                            <span class="text-muted">
+                                                <?php echo htmlspecialchars($order_details['shipping_city']); ?> • 
                                                 <?php echo htmlspecialchars($order_details['shipping_postal']); ?>
                                             </span>
                                         </p>
@@ -512,122 +700,178 @@ if ($order_id) {
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="col-lg-4">
+                            <!-- Order Totals -->
+                            <div class="summary-card">
+                                <div class="summary-header">
+                                    <h4><i class="fas fa-receipt me-2"></i>Order Summary</h4>
+                                </div>
+                                
+                                <div class="summary-item">
+                                    <span>Subtotal</span>
+                                    <span>Rs. <?php echo number_format($order_details['total_amount'], 2); ?></span>
+                                </div>
+                                
+                                <div class="summary-item">
+                                    <span>Shipping Fee</span>
+                                    <span>Rs. <?php echo number_format($order_details['shipping_fee'], 2); ?></span>
+                                </div>
+                                
+                                <div class="summary-item">
+                                    <span>Payment Method</span>
+                                    <span class="badge bg-secondary">
+                                        <?php echo ucwords(str_replace('_', ' ', $order_details['payment_method'])); ?>
+                                    </span>
+                                </div>
+                                
+                                <div class="summary-total">
+                                    <span>Total Amount</span>
+                                    <span>Rs. <?php echo number_format($order_details['final_total'], 2); ?></span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-            <?php else: ?>
-                <!-- ========== ORDERS LIST VIEW ========== -->
-                <?php if ($orders_result->num_rows > 0): ?>
-                    <div class="row">
-                        <?php while ($order = $orders_result->fetch_assoc()): ?>
-                            <div class="col-xl-4 col-lg-6 mb-4">
-                                <div class="card order-card h-100">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-start mb-3">
-                                            <div>
-                                                <h5 class="card-title mb-1 fw-bold" style="color: var(--primary);">
-                                                    Order #<?php echo str_pad($order['order_id'], 6, '0', STR_PAD_LEFT); ?>
-                                                </h5>
-                                                <p class="text-muted mb-0 small">
-                                                    <i class="fas fa-calendar me-1"></i>
-                                                    <?php echo date('M j, Y', strtotime($order['created_at'])); ?>
-                                                </p>
-                                            </div>
-                                            <span class="badge bg-<?php 
-                                                switch($order['status']) {
-                                                    case 'Delivered': echo 'success'; break;
-                                                    case 'Shipped': echo 'warning'; break;
-                                                    case 'Processing': echo 'info'; break;
-                                                    case 'Confirmed': echo 'primary'; break;
-                                                    case 'Pending': echo 'secondary'; break;
-                                                    default: echo 'light text-dark';
-                                                }
-                                            ?> status-badge rounded-pill"><?php echo $order['status']; ?></span>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <small class="text-muted">
-                                                <i class="fas fa-box me-1"></i>
-                                                <?php echo $order['item_count']; ?> item(s) • 
-                                                <i class="fas fa-hashtag ms-2 me-1"></i>
-                                                <?php echo $order['total_quantity']; ?> total units
-                                            </small>
-                                        </div>
-                                        
-                                        <div class="mb-3">
-                                            <small class="text-muted d-block mb-1">Payment:</small>
-                                            <span class="badge bg-light text-dark">
-                                                <?php echo ucwords(str_replace('_', ' ', $order['payment_method'])); ?>
-                                            </span>
-                                        </div>
-                                        
-                                        <div class="d-flex justify-content-between align-items-center mt-4">
-                                            <div>
-                                                <h4 class="text-primary mb-0">Rs. <?php echo number_format($order['final_total'], 2); ?></h4>
-                                            </div>
-                                            <div class="action-buttons">
-                                                <?php if ($order['status'] === 'Pending'): ?>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $order['order_id']; ?>">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                <?php endif; ?>
-                                                <a href="orders.php?order_id=<?php echo $order['order_id']; ?>" 
-                                                   class="btn btn-sm btn-primary">
-                                                    <i class="fas fa-eye me-1"></i>View
-                                                </a>
-                                            </div>
-                                        </div>
+        <?php else: ?>
+            <!-- ========== ORDERS LIST VIEW ========== -->
+            <?php if ($orders_result->num_rows > 0): ?>
+                <div class="row">
+                    <?php while ($order = $orders_result->fetch_assoc()): 
+                        $statusClass = 'status-' . strtolower($order['status']);
+                    ?>
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="order-card">
+                            <div class="order-card-header">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h3 class="h4 mb-1">Order #<?php echo str_pad($order['order_id'], 6, '0', STR_PAD_LEFT); ?></h3>
+                                        <p class="text-muted mb-0 small">
+                                            <?php echo date('M j, Y', strtotime($order['created_at'])); ?>
+                                        </p>
+                                    </div>
+                                    <span class="status-badge <?php echo $statusClass; ?>">
+                                        <?php echo $order['status']; ?>
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="order-card-body">
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Items</span>
+                                        <span class="fw-bold"><?php echo $order['item_count']; ?> item(s)</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-3">
+                                        <span class="text-muted">Total Quantity</span>
+                                        <span class="fw-bold"><?php echo $order['total_quantity']; ?> kg</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Payment</span>
+                                        <span class="badge bg-secondary">
+                                            <?php echo ucwords(str_replace('_', ' ', $order['payment_method'])); ?>
+                                        </span>
                                     </div>
                                 </div>
                                 
-                                <!-- Delete Confirmation Modal -->
-                                <div class="modal fade" id="deleteModal<?php echo $order['order_id']; ?>" tabindex="-1" aria-hidden="true">
-                                    <div class="modal-dialog">
-                                        <div class="modal-content">
-                                            <div class="modal-header">
-                                                <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-danger me-2"></i>Confirm Cancellation</h5>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <div class="modal-body">
-                                                <p>Are you sure you want to cancel <strong>Order #<?php echo str_pad($order['order_id'], 6, '0', STR_PAD_LEFT); ?></strong>?</p>
-                                                <div class="alert alert-warning">
-                                                    <i class="fas fa-info-circle me-2"></i>
-                                                    <small>Only orders with "Pending" status can be cancelled. This action cannot be undone.</small>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                                    <i class="fas fa-times me-1"></i>Cancel
-                                                </button>
-                                                <a href="orders.php?delete_order=true&order_id=<?php echo $order['order_id']; ?>" 
-                                                   class="btn btn-danger">
-                                                    <i class="fas fa-trash me-1"></i>Yes, Cancel Order
-                                                </a>
-                                            </div>
-                                        </div>
+                                <div class="d-flex justify-content-between align-items-center mt-4">
+                                    <div>
+                                        <h4 class="text-success mb-0">Rs. <?php echo number_format($order['final_total'], 2); ?></h4>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <?php if ($order['status'] === 'Pending'): ?>
+                                            <button type="button" class="btn btn-sm btn-danger-outline" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteModal<?php echo $order['order_id']; ?>"
+                                                    title="Cancel Order">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        <a href="orders.php?order_id=<?php echo $order['order_id']; ?>" 
+                                           class="btn btn-sm btn-spice">
+                                            <i class="fas fa-eye me-1"></i>View Details
+                                        </a>
                                     </div>
                                 </div>
                             </div>
-                        <?php endwhile; ?>
-                    </div>
-                <?php else: ?>
-                    <!-- Empty State -->
-                    <div class="text-center py-5">
-                        <div class="empty-state">
-                            <i class="fas fa-shopping-bag fa-4x text-muted mb-4"></i>
-                            <h3 class="mb-3 fw-bold" style="color: var(--primary);">No Orders Yet</h3>
-                            <p class="text-muted mb-4">You haven't placed any orders. Start exploring our spices collection!</p>
-                            <a href="home.php" class="btn btn-primary btn-lg">
-                                <i class="fas fa-store me-2"></i>Start Shopping
-                            </a>
+                        </div>
+                        
+                        <!-- Delete Confirmation Modal -->
+                        <div class="modal fade" id="deleteModal<?php echo $order['order_id']; ?>" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">
+                                            <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                            Cancel Order #<?php echo str_pad($order['order_id'], 6, '0', STR_PAD_LEFT); ?>
+                                        </h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p>Are you sure you want to cancel this order? This action cannot be undone.</p>
+                                        <div class="alert alert-warning">
+                                            <i class="fas fa-info-circle me-2"></i>
+                                            <small>Only orders with "Pending" status can be cancelled.</small>
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                            <i class="fas fa-times me-1"></i>Keep Order
+                                        </button>
+                                        <a href="orders.php?delete_order=true&order_id=<?php echo $order['order_id']; ?>" 
+                                           class="btn btn-danger">
+                                            <i class="fas fa-trash me-1"></i>Cancel Order
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                <?php endif; ?>
+                    <?php endwhile; ?>
+                </div>
+            <?php else: ?>
+                <!-- Empty State -->
+                <div class="empty-orders">
+                    <div class="empty-orders-icon">
+                        <i class="fas fa-shopping-bag"></i>
+                    </div>
+                    <h3>No Orders Yet</h3>
+                    <p>You haven't placed any orders. Explore our collection of authentic Sri Lankan spices and start your culinary journey!</p>
+                    <a href="home.php" class="btn btn-spice">
+                        <i class="fas fa-store me-2"></i>Browse Spices
+                    </a>
+                </div>
             <?php endif; ?>
-        </div>
+        <?php endif; ?>
     </div>
 
-    <?php include 'footer.php'; ?>
+    <!-- Footer -->
+    <footer style="background: var(--spice-dark); color: white; padding: 40px 0 20px; margin-top: 80px;">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <h4 class="mb-3">SpiceCeylon</h4>
+                    <p>Bringing authentic Sri Lankan spices directly from farmers to your kitchen.</p>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <h4 class="mb-3">Order Support</h4>
+                    <p><i class="fas fa-phone me-2"></i> +94 11 234 5678</p>
+                    <p><i class="fas fa-envelope me-2"></i> orders@spiceceylon.com</p>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <h4 class="mb-3">Delivery Info</h4>
+                    <p><i class="fas fa-shipping-fast me-2"></i>2-4 Business Days</p>
+                    <p><i class="fas fa-map-marked-alt me-2"></i>Islandwide Delivery</p>
+                </div>
+            </div>
+            <hr class="mt-4 mb-3">
+            <div class="text-center">
+                <p class="mb-0">&copy; <?php echo date('Y'); ?> SpiceCeylon. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -641,9 +885,15 @@ if ($order_id) {
                 }, 5000);
             });
         });
+        
+        // Add smooth transitions
+        document.querySelectorAll('.order-card').forEach(card => {
+            card.style.transition = 'all 0.3s ease';
+        });
     </script>
 </body>
 </html>
+
 <?php
 $conn->close();
 ?>

@@ -1,0 +1,14 @@
+=== Review Submission ===
+Time: 2025-12-26 14:27:11
+Session user_id: 1
+Session role: customer
+POST data: Array
+(
+    [product_id] => 36
+    [rating] => 5
+    [comment] => best product
+)
+
+Product ID: 36, Rating: 5, Comment length: 12
+Database connected successfully
+SUCCESS: Review submitted successfully. Review ID: 1
