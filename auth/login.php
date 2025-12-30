@@ -2,74 +2,54 @@
 session_start();
 include "../config/db.php";
 
-$error = ""; // FIXED: prevent undefined variable
+$error = "";
 
-// If form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
-    $role = trim($_POST['role']); // customer / farmer / admin
+    $role = trim($_POST['role']);
 
-
-    // -------------------- ADMIN LOGIN --------------------
+    // Admin login
     if ($role === "admin") {
-
         $query = $conn->prepare("SELECT * FROM admins WHERE email = ?");
         $query->bind_param("s", $email);
         $query->execute();
         $result = $query->get_result();
 
         if ($result->num_rows === 1) {
-
             $admin = $result->fetch_assoc();
-
             if (password_verify($password, $admin['password'])) {
-
-                // Store correct session values
                 $_SESSION['admin_id'] = $admin['admin_id'];
                 $_SESSION['admin_name'] = $admin['username'];
-                $_SESSION['role'] = $admin['role']; // super_admin
+                $_SESSION['role'] = $admin['role'];
                 $_SESSION['is_admin'] = true;
-
                 header("Location: ../admin/dashboard.php");
                 exit();
             } 
         }
-
         $_SESSION['error'] = "Invalid admin credentials!";
         header("Location: ../index.php");
         exit();
     }
 
-    // ============================
-    // CUSTOMER / FARMER LOGIN
-    // ============================
+    // Customer/Farmer login
     else {
-
         $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role' AND is_registered=1");
-
         if ($result && $result->num_rows > 0) {
-
             $user = $result->fetch_assoc();
-
             if (password_verify($password, $user['password'])) {
-
                 $_SESSION['user_id'] = $user['user_id'];
                 $_SESSION['role'] = $role;
                 $_SESSION['email'] = $email;
-
                 if ($role == "farmer") {
                     header("Location: ../farmer/dashboard.php");
                 } else {
                     header("Location: ../customer/home.php");
                 }
                 exit;
-
             } else {
                 $error = "Incorrect password!";
             }
-
         } else {
             $error = "User not found!";
         }
@@ -77,108 +57,114 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 ?>
 
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SpiceCeylon Login</title>
-<style>
-/* General Reset */
-* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-body { height:100vh; background: linear-gradient(to bottom right, #fbeec1, #f2a65a); display:flex; justify-content:center; align-items:center; }
-
-/* Login Box */
-.login-container { width:100%; max-width:400px; padding:20px; }
-.login-box { background:#fff8f0; padding:40px 30px; border-radius:15px; box-shadow:0 8px 20px rgba(0,0,0,0.15); text-align:center; }
-.login-box h2 { color:#b85c38; margin-bottom:25px; font-size:28px; }
-
-/* Input Fields */
-.input-group { margin-bottom:20px; text-align:left; }
-.input-group label { display:block; color:#8c5e3c; margin-bottom:5px; font-weight:600; }
-.input-group input, .input-group select { width:100%; padding:12px 15px; border:1px solid #e0c097; border-radius:8px; outline:none; font-size:16px; transition:0.3s; }
-.input-group input:focus, .input-group select:focus { border-color:#b85c38; box-shadow:0 0 8px rgba(184,92,56,0.4); }
-
-/* Button */
-button { width:100%; padding:12px; background-color:#b85c38; color:#fff; border:none; border-radius:8px; font-size:18px; cursor:pointer; transition:0.3s; }
-button:hover { background-color:#a14c2e; }
-
-/* Error Message */
-.error { background-color:#f8d7da; color:#842029; padding:10px; margin-bottom:15px; border-radius:8px; border:1px solid #f5c2c7; font-size:14px; }
-
-/* Footer */
-.footer-text { margin-top:15px; font-size:12px; color:#8c5e3c; }
-
-/* Register Links */
-.register-links { margin-top:20px; }
-.register-links a { color:#b85c38; text-decoration:none; margin:0 10px; transition:0.3s; font-weight:600; }
-.register-links a:hover { color:#a14c2e; text-decoration:underline; }
-
-/* Top Right Back Button */
-.back-top-right {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    padding: 10px 18px;
-    text-decoration: none;
-    border-radius: 6px;
-    font-size: 15px;
-    font-weight: bold;
-    z-index: 999;
-    transition: 0.3s ease;
-}
-
-.back-top-right:hover {
-    background: rgba(0, 0, 0, 0.85);
-}
-
-
-</style>
+<title>SpiceCeylon - Login</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/auth.css">
 </head>
 <body>
-<div class="login-container">
-    <div class="login-box">
-        <h2>SpiceCeylon Login</h2>
-
-        <!-- Display error if any -->
-        <?php if($error != ""): ?>
-            <div class="error"><?php echo $error; ?></div>
-        <?php endif; ?>
-
-        <form method="POST" action="">
-            <div class="input-group">
-                <label for="email">Email</label>
-                <input type="email" name="email" id="email" placeholder="Enter your email" required>
-            </div>
-            <div class="input-group">
-                <label for="password">Password</label>
-                <input type="password" name="password" id="password" placeholder="Enter your password" required>
-            </div>
-            <div class="input-group">
-                <label for="role">Login As</label>
-                <select name="role" id="role" required>
-                    <option value="">Select Role</option>
-                    <option value="customer">Customer</option>
-                    <option value="farmer">Farmer</option>
-                    <option value="admin">Admin</option>
-
-                </select>
-            </div>
-            <button type="submit">Login</button>
-        </form>
-
-        <!-- Register Links -->
-        <div class="register-links">
-            <span>Not registered yet?</span>
-            <a href="../auth/register.php">Register as Farmer/Customer</a> |
-        </div>
-        <a href="../index.php" class="back-top-right">🏠 Home</a>
-
-        <p class="footer-text">© 2025 SpiceCeylon. All rights reserved.</p>
+    <!-- Background Spice Icons -->
+    <div class="bg-spice">
+        <div class="spice-1"><i class="fas fa-pepper-hot"></i></div>
+        <div class="spice-2"><i class="fas fa-seedling"></i></div>
+        <div class="spice-3"><i class="fas fa-leaf"></i></div>
+        <div class="spice-4"><i class="fas fa-mortar-pestle"></i></div>
     </div>
-</div>
+
+    <a href="../index.php" class="back-home">
+        <i class="fas fa-arrow-left"></i> Home
+    </a>
+
+    <div class="auth-container">
+        <div class="auth-box">
+            <div class="auth-header">
+                <div class="logo">
+                    <i class="fas fa-pepper-hot"></i>
+                    <span>SpiceCeylon</span>
+                </div>
+                <h2>Welcome Back</h2>
+            </div>
+            
+            <div class="auth-body">
+                <?php if($error != ""): ?>
+                    <div class="message error">
+                        <i class="fas fa-exclamation-circle"></i><?php echo $error; ?>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" action="">
+                    <div class="input-group">
+                        <label for="email"><i class="fas fa-envelope"></i>Email Address</label>
+                        <input type="email" name="email" id="email" placeholder="Enter your email" required>
+                    </div>
+                    
+                    <div class="input-group password-toggle">
+                        <label for="password"><i class="fas fa-lock"></i>Password</label>
+                        <input type="password" name="password" id="password" placeholder="Enter your password" required>
+                        <span class="toggle-icon" onclick="togglePassword()">
+                            <i class="fas fa-eye" id="toggleIcon"></i>
+                        </span>
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="role"><i class="fas fa-user-tag"></i>Login As</label>
+                        <select name="role" id="role" required>
+                            <option value="">Select Role</option>
+                            <option value="customer">Customer</option>
+                            <option value="farmer">Farmer</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn-auth btn-login">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+                
+                <div class="auth-link">
+                    <p>Don't have an account?</p>
+                    <a href="register.php" class="btn-alt">
+                        <i class="fas fa-user-plus"></i> Register Now
+                    </a>
+                </div>
+                
+                <div class="auth-footer">
+                    &copy; <?php echo date('Y'); ?> SpiceCeylon. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }
+        }
+
+        // Add focus effects
+        document.querySelectorAll('input, select').forEach(element => {
+            element.addEventListener('focus', function() {
+                this.style.borderColor = 'var(--spice-blue)';
+                this.style.boxShadow = '0 0 0 3px rgba(52, 152, 219, 0.1)';
+            });
+            
+            element.addEventListener('blur', function() {
+                this.style.borderColor = '#e9ecef';
+                this.style.boxShadow = 'none';
+            });
+        });
+    </script>
 </body>
 </html>

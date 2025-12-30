@@ -4,7 +4,6 @@ include "../config/db.php";
 $error = "";
 $success = "";
 
-// Handle registration form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $name = $_POST['name'];
     $email = $_POST['email'];
@@ -14,7 +13,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $role = $_POST['role'];
     $farm_location = ($role == "farmer") ? $_POST['farm_location'] : NULL;
 
-    // Check if email already exists
     $check = $conn->query("SELECT * FROM users WHERE email='$email'");
     if ($check->num_rows > 0) {
         $error = "Email already registered!";
@@ -24,7 +22,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if ($conn->query($sql)) {
             $success = "Registration successful! Redirecting to login...";
-            header("refresh:2; url=login.php"); // Redirect after 2 seconds
+            header("refresh:2; url=login.php");
         } else {
             $error = "Error: " . $conn->error;
         }
@@ -37,127 +35,159 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SpiceCeylon Registration</title>
-<style>
-/* General Reset */
-* { margin:0; padding:0; box-sizing:border-box; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-body { height:100vh; background: linear-gradient(to bottom right, #fbeec1, #f2a65a); display:flex; justify-content:center; align-items:center; }
-
-/* Registration Box */
-.reg-container { width:100%; max-width:500px; padding:20px; }
-.reg-box { background:#fff8f0; padding:40px 30px; border-radius:15px; box-shadow:0 8px 20px rgba(0,0,0,0.15); }
-.reg-box h2 { text-align:center; color:#b85c38; margin-bottom:25px; font-size:28px; }
-
-/* Input Fields */
-.input-group { margin-bottom:20px; }
-.input-group label { display:block; color:#8c5e3c; margin-bottom:5px; font-weight:600; }
-.input-group input, .input-group select { width:100%; padding:12px 15px; border:1px solid #e0c097; border-radius:8px; outline:none; font-size:16px; transition:0.3s; }
-.input-group input:focus, .input-group select:focus { border-color:#b85c38; box-shadow:0 0 8px rgba(184,92,56,0.4); }
-
-/* Button */
-button { width:100%; padding:12px; background-color:#b85c38; color:#fff; border:none; border-radius:8px; font-size:18px; cursor:pointer; transition:0.3s; }
-button:hover { background-color:#a14c2e; }
-
-/* Error / Success Messages */
-.message { padding:10px; margin-bottom:15px; border-radius:8px; font-size:14px; }
-.error { background-color:#f8d7da; color:#842029; border:1px solid #f5c2c7; }
-.success { background-color:#d1e7dd; color:#0f5132; border:1px solid #badbcc; }
-
-/* Footer */
-.footer-text { text-align:center; margin-top:15px; font-size:12px; color:#8c5e3c; }
-
-/* Farm Location Field Toggle */
-#farm_location_group { display:none; }
-
-/* Top Right Back Button */
-.back-top-right {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    padding: 10px 18px;
-    text-decoration: none;
-    border-radius: 6px;
-    font-size: 15px;
-    font-weight: bold;
-    z-index: 999;
-    transition: 0.3s ease;
-}
-
-.back-top-right:hover {
-    background: rgba(0, 0, 0, 0.85);
-}
-
-</style>
-<script>
-// Show farm location input only if role is farmer
-function toggleFarmLocation() {
-    const role = document.getElementById('role').value;
-    const farmGroup = document.getElementById('farm_location_group');
-    if(role === 'farmer') {
-        farmGroup.style.display = 'block';
-    } else {
-        farmGroup.style.display = 'none';
-    }
-}
-</script>
+<title>SpiceCeylon - Register</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="../assets/css/auth.css">
 </head>
 <body>
-<div class="reg-container">
-    <div class="reg-box">
-        <h2>SpiceCeylon Registration</h2>
-
-        <!-- Display messages -->
-        <?php if($error != ""): ?>
-            <div class="message error"><?php echo $error; ?></div>
-        <?php endif; ?>
-        <?php if($success != ""): ?>
-            <div class="message success"><?php echo $success; ?></div>
-        <?php endif; ?>
-
-        <form method="POST" action="">
-            <div class="input-group">
-                <label for="name">Full Name</label>
-                <input type="text" name="name" id="name" placeholder="Enter your full name" required>
-            </div>
-            <div class="input-group">
-                <label for="email">Email</label>
-                <input type="email" name="email" id="email" placeholder="Enter your email" required>
-            </div>
-            <div class="input-group">
-                <label for="password">Password</label>
-                <input type="password" name="password" id="password" placeholder="Enter a password" required>
-            </div>
-            <div class="input-group">
-                <label for="phone">Phone</label>
-                <input type="text" name="phone" id="phone" placeholder="Enter your phone number" required>
-            </div>
-            <div class="input-group">
-                <label for="address">Address</label>
-                <input type="text" name="address" id="address" placeholder="Enter your address" required>
-            </div>
-            <div class="input-group">
-                <label for="role">Register As</label>
-                <select name="role" id="role" onchange="toggleFarmLocation()" required>
-                    <option value="">Select Role</option>
-                    <option value="customer">Customer</option>
-                    <option value="farmer">Farmer</option>
-                </select>
-            </div>
-            <div class="input-group" id="farm_location_group">
-                <label for="farm_location">Farm Location</label>
-                <input type="text" name="farm_location" id="farm_location" placeholder="Enter your farm location">
-            </div>
-            <button type="submit">Register</button>
-        </form>
-
-        <div class="footer-text">
-            Already registered? <a href="login.php" style="color:#b85c38; text-decoration:none;">Login here</a>
-        </div>
-        <a href="../index.php" class="back-top-right">🏠 Home</a>
-
+    <!-- Background Spice Icons -->
+    <div class="bg-spice">
+        <div class="spice-1"><i class="fas fa-pepper-hot"></i></div>
+        <div class="spice-2"><i class="fas fa-seedling"></i></div>
+        <div class="spice-3"><i class="fas fa-leaf"></i></div>
+        <div class="spice-4"><i class="fas fa-mortar-pestle"></i></div>
     </div>
-</div>
+
+    <a href="../index.php" class="back-home">
+        <i class="fas fa-arrow-left"></i> Home
+    </a>
+
+    <div class="auth-container reg-container">
+        <div class="auth-box">
+            <div class="auth-header">
+                <div class="logo">
+                    <i class="fas fa-pepper-hot"></i>
+                    <span>SpiceCeylon</span>
+                </div>
+                <h2>Create Your Account</h2>
+            </div>
+            
+            <div class="auth-body">
+                <?php if($error != ""): ?>
+                    <div class="message error">
+                        <i class="fas fa-exclamation-circle"></i><?php echo $error; ?>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if($success != ""): ?>
+                    <div class="message success">
+                        <i class="fas fa-check-circle"></i><?php echo $success; ?>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" action="">
+                    <div class="form-columns">
+                        <!-- Left Column -->
+                        <div class="column-left">
+                            <div class="input-group">
+                                <label for="name"><i class="fas fa-user"></i>Full Name</label>
+                                <input type="text" name="name" id="name" placeholder="Enter your full name" required>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="email"><i class="fas fa-envelope"></i>Email Address</label>
+                                <input type="email" name="email" id="email" placeholder="Enter your email" required>
+                            </div>
+                            
+                            <div class="input-group password-toggle">
+                                <label for="password"><i class="fas fa-lock"></i>Password</label>
+                                <input type="password" name="password" id="password" placeholder="Create a password" required>
+                                <span class="toggle-icon" onclick="togglePassword()">
+                                    <i class="fas fa-eye" id="toggleIcon"></i>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Right Column -->
+                        <div class="column-right">
+                            <div class="input-group">
+                                <label for="phone"><i class="fas fa-phone"></i>Phone Number</label>
+                                <input type="text" name="phone" id="phone" placeholder="Enter phone number" required>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="address"><i class="fas fa-map-marker-alt"></i>Address</label>
+                                <input type="text" name="address" id="address" placeholder="Enter your address" required>
+                            </div>
+                            
+                            <div class="input-group">
+                                <label for="role"><i class="fas fa-user-tag"></i>Register As</label>
+                                <select name="role" id="role" onchange="toggleFarmLocation()" required>
+                                    <option value="">Select Role</option>
+                                    <option value="customer">Customer</option>
+                                    <option value="farmer">Farmer</option>
+                                </select>
+                            </div>
+                            
+                            <div class="input-group" id="farm_location_group">
+                                <label for="farm_location"><i class="fas fa-tractor"></i>Farm Location</label>
+                                <input type="text" name="farm_location" id="farm_location" placeholder="Enter farm location">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="column-divider">Account Details</div>
+                    
+                    <button type="submit" class="btn-auth btn-register">
+                        <i class="fas fa-user-plus"></i> Create Account
+                    </button>
+                </form>
+                
+                <div class="auth-link">
+                    <p>Already have an account?</p>
+                    <a href="login.php" class="btn-alt">
+                        <i class="fas fa-sign-in-alt"></i> Login Here
+                    </a>
+                </div>
+                
+                <div class="auth-footer">
+                    &copy; <?php echo date('Y'); ?> SpiceCeylon. All rights reserved.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleIcon = document.getElementById('toggleIcon');
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleIcon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                toggleIcon.className = 'fas fa-eye';
+            }
+        }
+
+        function toggleFarmLocation() {
+            const role = document.getElementById('role').value;
+            const farmGroup = document.getElementById('farm_location_group');
+            if(role === 'farmer') {
+                farmGroup.style.display = 'block';
+            } else {
+                farmGroup.style.display = 'none';
+            }
+        }
+
+        // Initialize farm location visibility
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleFarmLocation();
+        });
+
+        // Add focus effects
+        document.querySelectorAll('input, select').forEach(element => {
+            element.addEventListener('focus', function() {
+                this.style.borderColor = 'var(--spice-blue)';
+                this.style.boxShadow = '0 0 0 3px rgba(52, 152, 219, 0.1)';
+            });
+            
+            element.addEventListener('blur', function() {
+                this.style.borderColor = '#e9ecef';
+                this.style.boxShadow = 'none';
+            });
+        });
+    </script>
 </body>
 </html>

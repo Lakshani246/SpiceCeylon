@@ -31,7 +31,133 @@ if (!in_array($admin_role, $allowed_roles)) {
     exit();
 }
 
-// Handle actions with CSRF protection
+// Function to notify customer
+function notifyCustomer($conn, $request_id, $status, $farmer_name = '') {
+    // Get customer email and request details
+    $stmt = $conn->prepare("
+        SELECT u.email, u.name as customer_name, pr.product_name 
+        FROM product_requests pr 
+        JOIN users u ON pr.customer_id = u.user_id 
+        WHERE pr.request_id = ?
+    ");
+    $stmt->bind_param("i", $request_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows > 0) {
+        $data = $result->fetch_assoc();
+        $customer_email = $data['email'];
+        $customer_name = $data['customer_name'];
+        $product_name = $data['product_name'];
+        
+        // Log notification
+        $message = "Customer {$customer_name} notified about request status: {$status} for {$product_name}" . 
+                  ($farmer_name ? " (Assigned to: {$farmer_name})" : "");
+        
+        $_SESSION['last_notification'] = [
+            'customer' => $customer_name,
+            'product' => $product_name,
+            'status' => $status,
+            'farmer' => $farmer_name
+        ];
+    }
+}
+
+// Handle POST actions (for farmer assignment)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_POST['action'] == 'assign') {
+        $request_id = (int)$_POST['request_id'];
+        $csrf_token = $_POST['csrf_token'];
+        $assigned_farmer_id = isset($_POST['farmer_id']) ? (int)$_POST['farmer_id'] : 0;
+        
+        // Validate CSRF token
+        if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) {
+            $_SESSION['message'] = "Security token invalid. Please try again.";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        // Validate farmer ID
+        if ($assigned_farmer_id <= 0) {
+            $_SESSION['message'] = "Please select a farmer to assign.";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        // Check if request exists
+        $check_stmt = $conn->prepare("SELECT status, product_name FROM product_requests WHERE request_id = ?");
+        $check_stmt->bind_param("i", $request_id);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows === 0) {
+            $_SESSION['message'] = "Request not found";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        $request_data = $check_result->fetch_assoc();
+        
+        // Get farmer name for notification
+        $farmer_stmt = $conn->prepare("SELECT name FROM users WHERE user_id = ?");
+        $farmer_stmt->bind_param("i", $assigned_farmer_id);
+        $farmer_stmt->execute();
+        $farmer_result = $farmer_stmt->get_result();
+        
+        if ($farmer_result->num_rows === 0) {
+            $_SESSION['message'] = "Selected farmer not found.";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        $farmer_name = $farmer_result->fetch_assoc()['name'];
+        
+        // Update request status and assign farmer
+        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', assigned_farmer_id = ?, updated_at = NOW() WHERE request_id = ?");
+        $stmt->bind_param("ii", $assigned_farmer_id, $request_id);
+        
+        if ($stmt->execute()) {
+            // Log the assignment
+            $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+            $admin_id = $_SESSION['admin_id'];
+            $old_status = $request_data['status'];
+            $new_status = 'Approved';
+            $notes = "Assigned to farmer: " . $farmer_name . " (ID: " . $assigned_farmer_id . ")";
+            $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+            $log_stmt->execute();
+            $log_stmt->close();
+            
+            // Store farmer assignment notification
+            $_SESSION['farmer_assignment_notification'] = [
+                'farmer_name' => $farmer_name,
+                'farmer_id' => $assigned_farmer_id,
+                'product_name' => $request_data['product_name'],
+                'request_id' => $request_id
+            ];
+            
+            // Notify customer
+            notifyCustomer($conn, $request_id, 'Approved', $farmer_name);
+            
+            $_SESSION['message'] = "Request approved and assigned to farmer " . htmlspecialchars($farmer_name) . "!";
+            $_SESSION['message_type'] = 'success';
+        } else {
+            $_SESSION['message'] = "Error assigning request to farmer.";
+            $_SESSION['message_type'] = 'danger';
+        }
+        
+        $stmt->close();
+        
+        // Redirect back to same page
+        header("Location: manage_requests.php");
+        exit();
+    }
+}
+
+// Handle GET actions with CSRF protection
 if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) {
     $request_id = (int)$_GET['id'];
     $action = $_GET['action'];
@@ -46,7 +172,7 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     }
     
     // Validate action
-    $allowed_actions = ['view', 'approve', 'reject', 'delete', 'review', 'complete'];
+    $allowed_actions = ['view', 'approve', 'reject', 'delete', 'review', 'complete', 'assign'];
     if (!in_array($action, $allowed_actions)) {
         $_SESSION['message'] = "Invalid action specified";
         $_SESSION['message_type'] = 'danger';
@@ -55,7 +181,7 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     }
     
     // Check if request exists and get current status
-    $check_stmt = $conn->prepare("SELECT status FROM product_requests WHERE request_id = ?");
+    $check_stmt = $conn->prepare("SELECT status, assigned_farmer_id FROM product_requests WHERE request_id = ?");
     $check_stmt->bind_param("i", $request_id);
     $check_stmt->execute();
     $check_result = $check_stmt->get_result();
@@ -67,7 +193,9 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
         exit();
     }
     
-    $current_status = $check_result->fetch_assoc()['status'];
+    $request_data = $check_result->fetch_assoc();
+    $current_status = $request_data['status'];
+    $current_farmer_id = $request_data['assigned_farmer_id'];
     
     if ($action == 'view') {
         header("Location: view_request.php?id=$request_id");
@@ -86,22 +214,54 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
         }
     }
     elseif ($action == 'approve') {
-        // Update status to Approved
-        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', updated_at = NOW() WHERE request_id = ?");
-        $stmt->bind_param("i", $request_id);
-        if ($stmt->execute()) {
-            $_SESSION['message'] = "Request approved successfully!";
-            $_SESSION['message_type'] = 'success';
+        // Check if farmer_id is provided for assignment
+        $assigned_farmer_id = isset($_GET['farmer_id']) ? (int)$_GET['farmer_id'] : null;
+        
+        if ($assigned_farmer_id) {
+            // Get farmer name for notification
+            $farmer_stmt = $conn->prepare("SELECT name FROM users WHERE user_id = ?");
+            $farmer_stmt->bind_param("i", $assigned_farmer_id);
+            $farmer_stmt->execute();
+            $farmer_result = $farmer_stmt->get_result();
+            $farmer_name = $farmer_result->num_rows > 0 ? $farmer_result->fetch_assoc()['name'] : '';
+            
+            // Update status to Approved and assign farmer
+            $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', assigned_farmer_id = ?, updated_at = NOW() WHERE request_id = ?");
+            $stmt->bind_param("ii", $assigned_farmer_id, $request_id);
+            if ($stmt->execute()) {
+                // Notify customer
+                notifyCustomer($conn, $request_id, 'Approved', $farmer_name);
+                
+                $_SESSION['message'] = "Request approved and assigned to farmer! Customer has been notified.";
+                $_SESSION['message_type'] = 'success';
+            } else {
+                $_SESSION['message'] = "Error approving request";
+                $_SESSION['message_type'] = 'danger';
+            }
         } else {
-            $_SESSION['message'] = "Error approving request";
-            $_SESSION['message_type'] = 'danger';
+            // Update status to Approved without assignment
+            $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', updated_at = NOW() WHERE request_id = ?");
+            $stmt->bind_param("i", $request_id);
+            if ($stmt->execute()) {
+                // Notify customer
+                notifyCustomer($conn, $request_id, 'Approved');
+                
+                $_SESSION['message'] = "Request approved successfully! Customer has been notified.";
+                $_SESSION['message_type'] = 'success';
+            } else {
+                $_SESSION['message'] = "Error approving request";
+                $_SESSION['message_type'] = 'danger';
+            }
         }
     }
     elseif ($action == 'reject') {
         $stmt = $conn->prepare("UPDATE product_requests SET status = 'Rejected', updated_at = NOW() WHERE request_id = ?");
         $stmt->bind_param("i", $request_id);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Request rejected!";
+            // Notify customer
+            notifyCustomer($conn, $request_id, 'Rejected');
+            
+            $_SESSION['message'] = "Request rejected! Customer has been notified.";
             $_SESSION['message_type'] = 'success';
         } else {
             $_SESSION['message'] = "Error rejecting request";
@@ -112,7 +272,10 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
         $stmt = $conn->prepare("UPDATE product_requests SET status = 'Completed', updated_at = NOW() WHERE request_id = ?");
         $stmt->bind_param("i", $request_id);
         if ($stmt->execute()) {
-            $_SESSION['message'] = "Request marked as completed!";
+            // Notify customer
+            notifyCustomer($conn, $request_id, 'Completed');
+            
+            $_SESSION['message'] = "Request marked as completed! Customer has been notified.";
             $_SESSION['message_type'] = 'success';
         } else {
             $_SESSION['message'] = "Error updating request";
@@ -153,10 +316,15 @@ if (!in_array($status_filter, $valid_statuses)) {
     $status_filter = 'Pending';
 }
 
-// Build query with prepared statements - CHANGED TO product_requests
-$query = "SELECT pr.*, u.name as customer_name, u.email as customer_email 
+// Build query with prepared statements
+$query = "SELECT pr.*, 
+                 u.name as customer_name, 
+                 u.email as customer_email,
+                 f.name as farmer_name,
+                 f.email as farmer_email
           FROM product_requests pr 
           JOIN users u ON pr.customer_id = u.user_id 
+          LEFT JOIN users f ON pr.assigned_farmer_id = f.user_id
           WHERE pr.status = ?";
 
 $count_query = "SELECT COUNT(*) as total FROM product_requests pr WHERE pr.status = ?";
@@ -168,17 +336,24 @@ $count_param_types = "s";
 
 if (!empty($search)) {
     $search_term = "%" . $search . "%";
-    $query .= " AND (pr.product_name LIKE ? OR pr.description LIKE ? OR u.name LIKE ?)";
-    $count_query .= " AND (pr.product_name LIKE ? OR pr.description LIKE ? OR pr.customer_id IN (SELECT user_id FROM users WHERE name LIKE ?))";
+    $query .= " AND (pr.product_name LIKE ? OR pr.description LIKE ? OR u.name LIKE ? OR f.name LIKE ?)";
+    $count_query .= " AND (pr.product_name LIKE ? OR pr.description LIKE ? OR pr.customer_id IN (SELECT user_id FROM users WHERE name LIKE ?) OR pr.assigned_farmer_id IN (SELECT user_id FROM users WHERE name LIKE ?))";
     
-    $params = array_merge($params, [$search_term, $search_term, $search_term]);
-    $count_params = array_merge($count_params, [$search_term, $search_term, $search_term]);
-    $param_types .= "sss";
-    $count_param_types .= "sss";
+    $params = array_merge($params, [$search_term, $search_term, $search_term, $search_term]);
+    $count_params = array_merge($count_params, [$search_term, $search_term, $search_term, $search_term]);
+    $param_types .= "ssss";
+    $count_param_types .= "ssss";
 }
 
 // Order by
-$query .= " ORDER BY pr.created_at DESC";
+$query .= " ORDER BY 
+            CASE 
+                WHEN pr.urgency = 'High' THEN 1
+                WHEN pr.urgency = 'Medium' THEN 2
+                WHEN pr.urgency = 'Low' THEN 3
+                ELSE 4
+            END,
+            pr.created_at DESC";
 
 // Pagination
 $limit = 15;
@@ -215,7 +390,7 @@ if ($params) {
 $requests_stmt->execute();
 $requests_result = $requests_stmt->get_result();
 
-// Get counts for all statuses using prepared statements - CHANGED TO product_requests
+// Get counts for all statuses using prepared statements
 function getRequestCount($conn, $status) {
     $stmt = $conn->prepare("SELECT COUNT(*) as count FROM product_requests WHERE status = ?");
     $stmt->bind_param("s", $status);
@@ -231,11 +406,28 @@ $rejected_count = getRequestCount($conn, 'Rejected');
 $completed_count = getRequestCount($conn, 'Completed');
 $total_all = $pending_count + $reviewed_count + $approved_count + $rejected_count + $completed_count;
 
+// Get all farmers for dropdown
+$farmers_query = $conn->prepare("SELECT user_id, name, email, farm_location FROM users WHERE role = 'farmer' AND status = 'active' ORDER BY name");
+$farmers_query->execute();
+$farmers_result = $farmers_query->get_result();
+
 // Check for messages
 $message = $_SESSION['message'] ?? '';
 $message_type = $_SESSION['message_type'] ?? 'success';
 unset($_SESSION['message']);
 unset($_SESSION['message_type']);
+
+// Check for farmer assignment notification
+if (isset($_SESSION['farmer_assignment_notification'])) {
+    $farmer_assignment = $_SESSION['farmer_assignment_notification'];
+    unset($_SESSION['farmer_assignment_notification']);
+}
+
+// Show last notification if exists
+if (isset($_SESSION['last_notification'])) {
+    $last_notification = $_SESSION['last_notification'];
+    unset($_SESSION['last_notification']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -448,6 +640,40 @@ unset($_SESSION['message_type']);
             color: #e9ecef;
             margin-bottom: 20px;
         }
+        
+        .farmer-badge {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: #2980b9;
+            padding: 3px 8px;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            margin-left: 5px;
+        }
+        
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--spice-red);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .farmer-assigned-alert {
+            background: linear-gradient(135deg, #d1e7dd, #a3cfbb);
+            border: 1px solid #badbcc;
+            color: #0f5132;
+            border-left: 4px solid var(--spice-green);
+        }
     </style>
 </head>
 <body>
@@ -468,11 +694,16 @@ unset($_SESSION['message_type']);
                             </h2>
                             <p class="text-muted mb-0">
                                 <i class="fas fa-info-circle me-1"></i> 
-                                Manage product requests from customers
+                                Manage product requests from customers and assign to farmers
                             </p>
                         </div>
-                        <div style="background: linear-gradient(135deg, var(--spice-red), #d35400); color: white; padding: 10px 20px; border-radius: 25px; font-weight: 500; box-shadow: 0 4px 10px rgba(184, 92, 56, 0.3);">
+                        <div style="background: linear-gradient(135deg, var(--spice-red), #d35400); color: white; padding: 10px 20px; border-radius: 25px; font-weight: 500; box-shadow: 0 4px 10px rgba(184, 92, 56, 0.3); position: relative;">
                             <i class="fas fa-inbox me-1"></i> Total Requests: <?php echo number_format($total_all); ?>
+                            <?php if(isset($last_notification) || isset($farmer_assignment)): ?>
+                            <span class="notification-badge" title="Recent notification">
+                                <i class="fas fa-bell"></i>
+                            </span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -482,6 +713,33 @@ unset($_SESSION['message_type']);
                 <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show mb-4" role="alert">
                     <i class="fas fa-<?php echo $message_type == 'success' ? 'check-circle' : ($message_type == 'danger' ? 'exclamation-circle' : 'info-circle'); ?> me-2"></i> 
                     <?php echo htmlspecialchars($message); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php endif; ?>
+
+                <!-- Farmer Assignment Notification -->
+                <?php if(isset($farmer_assignment)): ?>
+                <div class="alert farmer-assigned-alert alert-dismissible fade show mb-4" role="alert">
+                    <i class="fas fa-user-tie me-2"></i>
+                    <strong>✓ Request Assigned Successfully!</strong><br>
+                    <strong><?php echo htmlspecialchars($farmer_assignment['farmer_name']); ?></strong> (ID: <?php echo $farmer_assignment['farmer_id']; ?>) has been assigned to: <br>
+                    <strong>"<?php echo htmlspecialchars($farmer_assignment['product_name']); ?>"</strong> (Request ID: #<?php echo $farmer_assignment['request_id']; ?>)<br>
+                    <small class="text-muted">The farmer will see this request in their dashboard immediately.</small>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php endif; ?>
+
+                <!-- Last Customer Notification Info -->
+                <?php if(isset($last_notification)): ?>
+                <div class="alert alert-info alert-dismissible fade show mb-4" role="alert">
+                    <i class="fas fa-bell me-2"></i>
+                    <strong>Customer Notified:</strong> 
+                    <?php echo htmlspecialchars($last_notification['customer']); ?> was notified about 
+                    "<?php echo htmlspecialchars($last_notification['product']); ?>" - 
+                    Status: <?php echo $last_notification['status']; ?>
+                    <?php if(!empty($last_notification['farmer'])): ?>
+                        (Assigned to: <?php echo htmlspecialchars($last_notification['farmer']); ?>)
+                    <?php endif; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 <?php endif; ?>
@@ -534,7 +792,7 @@ unset($_SESSION['message_type']);
                                         <div class="stat-value"><?php echo number_format($approved_count); ?></div>
                                         <div class="stat-label">Approved</div>
                                         <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-check me-1"></i> Request approved
+                                            <i class="fas fa-check me-1"></i> Assigned to farmers
                                         </div>
                                     </div>
                                     <div class="display-6 opacity-50">
@@ -600,7 +858,7 @@ unset($_SESSION['message_type']);
                                             <i class="fas fa-search text-muted"></i>
                                         </span>
                                         <input type="text" class="form-control" name="search" 
-                                               placeholder="Product name, customer, description..." 
+                                               placeholder="Product name, customer, farmer, description..." 
                                                value="<?php echo htmlspecialchars($search); ?>">
                                     </div>
                                 </div>
@@ -624,8 +882,6 @@ unset($_SESSION['message_type']);
                                         </a>
                                     </div>
                                 </div>
-                                <!-- CSRF Token for form -->
-                                <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                             </form>
                         </div>
                         <div class="col-md-4">
@@ -656,6 +912,11 @@ unset($_SESSION['message_type']);
                                         <strong style="color: var(--spice-purple);"><?php echo $completed_count; ?></strong>
                                     </div>
                                 </div>
+                                <hr class="my-3">
+                                <div class="small text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Approved requests are assigned to farmers for fulfillment.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -663,10 +924,16 @@ unset($_SESSION['message_type']);
 
                 <!-- Requests List -->
                 <div class="analytics-card">
-                    <h5 class="mb-4">
-                        <i class="fas fa-list me-2" style="color: var(--spice-red);"></i>
-                        Product Request List (<?php echo $total_requests; ?> requests)
-                    </h5>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h5 class="mb-0">
+                            <i class="fas fa-list me-2" style="color: var(--spice-red);"></i>
+                            Product Request List (<?php echo $total_requests; ?> requests)
+                        </h5>
+                        <div class="text-muted small">
+                            <i class="fas fa-user-tie me-1"></i>
+                            <?php echo $farmers_result->num_rows; ?> active farmers available
+                        </div>
+                    </div>
                     
                     <?php if($requests_result->num_rows > 0): ?>
                         <?php while($request = $requests_result->fetch_assoc()): ?>
@@ -695,6 +962,14 @@ unset($_SESSION['message_type']);
                                         <div class="mt-1">
                                             <i class="fas fa-tag me-1"></i>
                                             <?php echo htmlspecialchars($request['category']); ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        <?php if(!empty($request['farmer_name'])): ?>
+                                        <div class="mt-1">
+                                            <span class="farmer-badge">
+                                                <i class="fas fa-user-tie me-1"></i>
+                                                <?php echo htmlspecialchars($request['farmer_name']); ?>
+                                            </span>
                                         </div>
                                         <?php endif; ?>
                                     </div>
@@ -748,54 +1023,89 @@ unset($_SESSION['message_type']);
                                 <!-- Actions -->
                                 <div class="col-md-3">
                                     <div class="action-buttons d-flex justify-content-end">
-                                        <a href="view_request.php?id=<?php echo $request['request_id']; ?>" 
-                                           class="btn btn-outline-primary btn-sm me-1">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
-                                        
                                         <?php if($request['status'] == 'Pending'): ?>
                                             <a href="manage_requests.php?action=review&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
                                                class="btn btn-info btn-sm me-1"
                                                onclick="return confirm('Mark this request as reviewed?')">
                                                 <i class="fas fa-eye"></i> Review
                                             </a>
+                                            
+                                            <!-- Assign & Approve button -->
+                                            <button class="btn btn-success btn-sm me-1 btn-assign-farmer" 
+                                                    data-request-id="<?php echo $request['request_id']; ?>">
+                                                <i class="fas fa-user-tie me-1"></i> Assign & Approve
+                                            </button>
+                                            
+                                            <!-- Direct approve without assignment -->
                                             <a href="manage_requests.php?action=approve&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-success btn-sm me-1"
-                                               onclick="return confirm('Approve this product request?')">
-                                                <i class="fas fa-check"></i> Approve
+                                               class="btn btn-outline-success btn-sm me-1"
+                                               onclick="return confirm('Approve without assigning to a farmer?\n\nCustomer will be notified immediately.\nFarmer will need to be assigned later.')">
+                                                <i class="fas fa-check-circle"></i> Direct Approve
                                             </a>
+                                            
                                             <a href="manage_requests.php?action=reject&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
                                                class="btn btn-danger btn-sm"
-                                               onclick="return confirm('Reject this product request?')">
+                                               onclick="return confirm('Reject this product request? Customer will be notified.')">
                                                 <i class="fas fa-times"></i> Reject
                                             </a>
+                                            
                                         <?php elseif($request['status'] == 'Reviewed'): ?>
+                                            <!-- Assign & Approve button -->
+                                            <button class="btn btn-success btn-sm me-1 btn-assign-farmer" 
+                                                    data-request-id="<?php echo $request['request_id']; ?>">
+                                                <i class="fas fa-user-tie me-1"></i> Assign & Approve
+                                            </button>
+                                            
+                                            <!-- Direct approve without assignment -->
                                             <a href="manage_requests.php?action=approve&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-success btn-sm me-1"
-                                               onclick="return confirm('Approve this product request?')">
-                                                <i class="fas fa-check"></i> Approve
+                                               class="btn btn-outline-success btn-sm me-1"
+                                               onclick="return confirm('Approve without assigning to a farmer?\n\nCustomer will be notified immediately.\nFarmer will need to be assigned later.')">
+                                                <i class="fas fa-check-circle"></i> Direct Approve
                                             </a>
+                                            
                                             <a href="manage_requests.php?action=reject&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
                                                class="btn btn-danger btn-sm"
-                                               onclick="return confirm('Reject this product request?')">
+                                               onclick="return confirm('Reject this product request? Customer will be notified.')">
                                                 <i class="fas fa-times"></i> Reject
                                             </a>
+                                            
                                         <?php elseif($request['status'] == 'Approved'): ?>
                                             <a href="manage_requests.php?action=complete&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
                                                class="btn btn-secondary btn-sm me-1"
-                                               onclick="return confirm('Mark this request as completed?')">
+                                               onclick="return confirm('Mark this request as completed? Customer will be notified.')">
                                                 <i class="fas fa-check-double"></i> Complete
                                             </a>
+                                            
+                                            <!-- Reassign button if farmer hasn't accepted yet -->
+                                            <?php if(empty($request['farmer_name'])): ?>
+                                                <button class="btn btn-warning btn-sm me-1 btn-assign-farmer" 
+                                                        data-request-id="<?php echo $request['request_id']; ?>">
+                                                    <i class="fas fa-sync-alt me-1"></i> Reassign
+                                                </button>
+                                            <?php endif; ?>
+                                            
                                         <?php endif; ?>
                                         
                                         <?php if(in_array($admin_role, ['super_admin', 'admin'])): ?>
                                             <a href="manage_requests.php?action=delete&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
                                                class="btn btn-outline-danger btn-sm"
-                                               onclick="return confirm('Delete this request permanently?')">
+                                               onclick="return confirm('Delete this request permanently? This cannot be undone.')">
                                                 <i class="fas fa-trash"></i> Delete
                                             </a>
                                         <?php endif; ?>
                                     </div>
+                                    
+                                    <!-- Show farmer info if assigned -->
+                                    <?php if(!empty($request['assigned_farmer_id'])): ?>
+                                        <div class="small text-muted mt-1">
+                                            <i class="fas fa-user-tie me-1"></i> 
+                                            <?php if(!empty($request['farmer_name'])): ?>
+                                                Assigned to: <?php echo htmlspecialchars($request['farmer_name']); ?>
+                                            <?php else: ?>
+                                                Farmer ID: <?php echo $request['assigned_farmer_id']; ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -858,6 +1168,62 @@ unset($_SESSION['message_type']);
         </div>
     </div>
 
+    <!-- Farmer Assignment Modal -->
+    <div class="modal fade" id="assignFarmerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" style="background: var(--spice-red); color: white;">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-tie me-2"></i> Assign to Farmer
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form id="assignFarmerForm" method="POST" action="manage_requests.php">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="assign">
+                        <input type="hidden" name="request_id" id="assignRequestId">
+                        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Select Farmer</label>
+                            <select class="form-select" name="farmer_id" id="farmerSelect" required>
+                                <option value="">-- Select a farmer --</option>
+                                <?php
+                                // Reset farmers result pointer
+                                $farmers_result->data_seek(0);
+                                while($farmer = $farmers_result->fetch_assoc()): ?>
+                                    <option value="<?php echo $farmer['user_id']; ?>">
+                                        <?php echo htmlspecialchars($farmer['name']); ?> 
+                                        <?php if(!empty($farmer['farm_location'])): ?>
+                                            (<?php echo htmlspecialchars($farmer['farm_location']); ?>)
+                                        <?php endif; ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
+                            <div class="form-text">This farmer will receive the request in their dashboard</div>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Note:</strong> The selected farmer will receive this request and can:
+                            <ul class="mb-0 mt-2">
+                                <li>Accept the request (Customer will be notified)</li>
+                                <li>Reject the request with a reason</li>
+                                <li>Mark as completed when fulfilled</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-check me-1"></i> Assign & Approve
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -866,6 +1232,33 @@ unset($_SESSION['message_type']);
             setTimeout(function() {
                 $('.alert').alert('close');
             }, 5000);
+            
+            // Farmer assignment modal
+            $('.btn-assign-farmer').click(function() {
+                var requestId = $(this).data('request-id');
+                $('#assignRequestId').val(requestId);
+                $('#assignFarmerModal').modal('show');
+            });
+            
+            // Handle direct approve confirmation
+            $('a[href*="action=approve"]').not('.btn-assign-farmer').click(function(e) {
+                return confirm('Approve without assigning to a farmer?\n\nCustomer will be notified immediately.\nFarmer will need to be assigned later.');
+            });
+            
+            // Handle reject confirmation
+            $('a[href*="action=reject"]').click(function(e) {
+                return confirm('Reject this request?\n\nCustomer will be notified of the rejection.');
+            });
+            
+            // Handle complete confirmation
+            $('a[href*="action=complete"]').click(function(e) {
+                return confirm('Mark this request as completed?\n\nCustomer will be notified that their request has been fulfilled.');
+            });
+            
+            // Handle delete confirmation
+            $('a[href*="action=delete"]').click(function(e) {
+                return confirm('Delete this request permanently?\n\nThis action cannot be undone.');
+            });
         });
     </script>
 </body>
