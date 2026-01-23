@@ -455,6 +455,48 @@ $wishlist_count = $wishlist_result->fetch_assoc()['wishlist_count'];
                                 <?php endif; ?>
                             </a>
                         </li>
+                        <!-- Add these to the existing sidebar links -->
+<li class="nav-item">
+    <a class="nav-link" href="messages.php">
+        <i class="fas fa-envelope"></i>
+        My Messages
+        <?php
+        // Get unread message count
+        $unread_query = "SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND receiver_role = 'customer' AND is_read = FALSE";
+        $unread_stmt = $conn->prepare($unread_query);
+        $unread_stmt->bind_param("i", $customer_id);
+        $unread_stmt->execute();
+        $unread_result = $unread_stmt->get_result();
+        $unread_count = $unread_result->fetch_assoc()['count'];
+        ?>
+        <?php if($unread_count > 0): ?>
+            <span class="badge bg-danger ms-1"><?php echo $unread_count; ?></span>
+        <?php endif; ?>
+    </a>
+</li>
+
+<li class="nav-item">
+    <a class="nav-link" href="notifications.php">
+        <i class="fas fa-bell"></i>
+        Notifications
+        <?php
+        // Get unread notification count
+        $unread_notif_query = "SELECT COUNT(DISTINCT n.notification_id) as count 
+                              FROM notifications n
+                              LEFT JOIN user_notification_status uns ON n.notification_id = uns.notification_id AND uns.user_id = ?
+                              WHERE (n.target_roles = 'all' OR n.target_roles = 'customers')
+                              AND (uns.is_read IS NULL OR uns.is_read = FALSE)";
+        $unread_notif_stmt = $conn->prepare($unread_notif_query);
+        $unread_notif_stmt->bind_param("i", $customer_id);
+        $unread_notif_stmt->execute();
+        $unread_notif_result = $unread_notif_stmt->get_result();
+        $unread_notif_count = $unread_notif_result->fetch_assoc()['count'];
+        ?>
+        <?php if($unread_notif_count > 0): ?>
+            <span class="badge bg-warning ms-1"><?php echo $unread_notif_count; ?></span>
+        <?php endif; ?>
+    </a>
+</li>
                         <li class="nav-item">
                             <a class="nav-link" href="request.php">
                                 <i class="fas fa-plus-circle"></i>

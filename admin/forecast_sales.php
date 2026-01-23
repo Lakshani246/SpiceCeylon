@@ -172,6 +172,7 @@ function generate_sample_forecast($period, $conn) {
         'actual' => [],
         'growth_rate' => 0,
         'peak_month' => '',
+        'peak_value' => 0,
         'total_forecast' => 0
     ];
     

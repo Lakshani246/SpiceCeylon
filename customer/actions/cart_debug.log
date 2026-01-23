@@ -61,3 +61,12 @@ Product: Ceylon Citron / Lemon, Base Price: 150, Multiplier: 1
 Unit Price: 150, Total Price: 300
 New cart item added successfully
 SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-01-02 14:42:09
+User ID: 1, Role: customer
+POST Data - Product ID: 31, Quantity: 1, Package: 100g
+Database connected successfully
+Product: Licorice Powder, Base Price: 580, Multiplier: 0.1
+Unit Price: 58, Total Price: 58
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 100g

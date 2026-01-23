@@ -145,6 +145,50 @@ $current_time = date('h:i A');
                             <?php endif; ?>
                         </a>
                     </li>
+                    <!-- Add Messages Link -->
+<li class="nav-item">
+    <a class="nav-link" href="messages.php">
+        <i class="fas fa-envelope me-2"></i>
+        Messages
+        <?php
+        // Get unread message count for farmer
+        $unread_msg_query = "SELECT COUNT(*) as count FROM messages WHERE receiver_id = ? AND receiver_role = 'farmer' AND is_read = FALSE";
+        $unread_msg_stmt = $conn->prepare($unread_msg_query);
+        $unread_msg_stmt->bind_param("i", $farmer_id);
+        $unread_msg_stmt->execute();
+        $unread_msg_result = $unread_msg_stmt->get_result();
+        $unread_msg_count = $unread_msg_result->fetch_assoc()['count'];
+        ?>
+        <?php if($unread_msg_count > 0): ?>
+        <span class="badge bg-danger float-end"><?php echo $unread_msg_count; ?></span>
+        <?php endif; ?>
+    </a>
+</li>
+
+<!-- Add Notifications Link -->
+<li class="nav-item">
+    <a class="nav-link" href="notifications.php">
+        <i class="fas fa-bell me-2"></i>
+        Notifications
+        <?php
+        // Get unread notification count for farmer
+        $unread_notif_query = "SELECT COUNT(DISTINCT n.notification_id) as count 
+                              FROM notifications n
+                              LEFT JOIN user_notification_status uns ON n.notification_id = uns.notification_id AND uns.user_id = ?
+                              WHERE (n.target_roles = 'all' OR n.target_roles = 'farmers')
+                              AND (uns.is_read IS NULL OR uns.is_read = FALSE)
+                              AND (n.expires_at IS NULL OR n.expires_at > NOW())";
+        $unread_notif_stmt = $conn->prepare($unread_notif_query);
+        $unread_notif_stmt->bind_param("i", $farmer_id);
+        $unread_notif_stmt->execute();
+        $unread_notif_result = $unread_notif_stmt->get_result();
+        $unread_notif_count = $unread_notif_result->fetch_assoc()['count'];
+        ?>
+        <?php if($unread_notif_count > 0): ?>
+        <span class="badge bg-warning float-end"><?php echo $unread_notif_count; ?></span>
+        <?php endif; ?>
+    </a>
+</li>
                     <li class="nav-item">
                         <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) == 'my_sales.php' ? 'active' : ''; ?>" href="my_sales.php">
                             <i class="fas fa-chart-line me-2"></i>

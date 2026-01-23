@@ -1,0 +1,86 @@
+spiceceylon/
+├── index.php                      # Landing page with video background
+├── assets/
+│   ├── css/
+│   │   ├── landing.css           # Landing page styles
+│   │   ├── auth.css             # Login/Register page styles
+│   │   └── cart.css            # General styles (if any)
+│   │   └── customer_dashboar.css
+│   │   └── home.css
+│   │   └── view_product.css
+│   ├── js/
+│   │   └── cart.js            # General JavaScript
+│   │   └──customer_dashboard.js
+│   │   └──home.js
+│   │   └──view_product.js
+│   ├── images/
+│   │   ├── logo.png             # Website logo
+│   │   ├── products/            # Product images
+│   │   └── profile images/               # User profile images
+│   │   └──about/
+│   │   └──team
+│   └── videos/
+│       └── landing-video.mp4    # Landing page background video
+│   └──  icons/
+├── auth/
+│   ├── login.php                # Login page
+│   ├── register.php             # Registration page
+│   ├── logout.php               # Logout script
+│   └── rest_admin.php      # Password reset (if exists)
+│   └── unauthorized.php
+│
+├── config/
+│   └── db.php                   # Database configuration
+│   └──auth_check.php
+│   └──functions.php
+│
+├── customer/                    # Customer user area
+│   ├── home.php                 # Customer dashboard/home
+│   ├── dashboard.php            # Customer dashboard
+│   ├── cart.php                 # Shopping cart
+│   ├── orders.php               # Order history
+│   ├── wishlist.php             # Wishlist
+│   ├── profile.php              # Profile management
+│   ├── request.php              # Special requests
+│   ├── product_detail.php       # Product details view
+│   └── about.php                # About page
+│   └──chekout.php
+│   └──footer.php
+│   └──header.php
+│   └──test_actions.php
+│   └──order_success.php
+│   └──view_detail.php
+├── actions/
+│   └── add_review.php 
+│   └──add_to_cart.php
+│   └──add_to_wishlist
+│   └──get_cart_count.php
+│
+├── farmer/                      # Farmer user area
+│   ├── dashboard.php            # Farmer dashboard
+│   ├── manage_products.php             # Product management
+│   ├── add_product.php               #  management
+│   ├── profile.php              # Profile management
+│   ├── customer_requests.php             # Customer requests
+│   └── my_sales.php                # Sales reports
+│   └──header.php
+│   └──footer.php
+│   └──edit_product.php
+│
+├── admin/                       # Admin area
+│   ├── dashboard.php            # Admin dashboard
+│   ├── manage_users.php                # User management
+│   ├── manage_products.php             # Product approval/management
+│   ├── manage_orders.php               # Order management
+│   ├── forecast_sales.php              # Reports & analytics
+│   └── sales_analytics.php             # System settings
+│   └──manage_website.php
+│   └──sidebar.php
+│   └──manage_content.php
+│   └──admin_profile.php
+│   └──approve_request.php
+│   └──forecast_model.py
+
+│
+└── database/
+    └── spiceceylon.sql         # Database schema
