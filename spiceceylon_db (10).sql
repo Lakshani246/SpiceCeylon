@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Dec 28, 2025 at 04:44 PM
+-- Generation Time: Mar 01, 2026 at 08:23 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -81,6 +81,35 @@ CREATE TABLE `admin_logins` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `announcements`
+--
+
+CREATE TABLE `announcements` (
+  `announcement_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `message` text NOT NULL,
+  `target_roles` enum('all','customers','farmers','admins','specific') DEFAULT 'all',
+  `target_user_id` int(11) DEFAULT NULL,
+  `created_by` int(11) NOT NULL,
+  `is_important` tinyint(1) DEFAULT 0,
+  `expires_at` datetime DEFAULT NULL,
+  `announcement_type` varchar(50) DEFAULT 'general',
+  `status` enum('active','archived') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `announcements`
+--
+
+INSERT INTO `announcements` (`announcement_id`, `title`, `message`, `target_roles`, `target_user_id`, `created_by`, `is_important`, `expires_at`, `announcement_type`, `status`, `created_at`, `updated_at`) VALUES
+(1, 'system maintenance', 'system maintenace scheduled for 27th feb', 'all', NULL, 1, 0, '2026-02-27 23:59:59', 'maintenance', 'active', '2026-02-25 04:21:30', '2026-02-25 04:21:30'),
+(2, 'system maintenance', 'system maintenace scheduled for 27th feb', 'all', NULL, 1, 0, '2026-02-27 23:59:59', 'maintenance', 'active', '2026-02-25 04:21:38', '2026-02-25 04:21:38');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `banners`
 --
 
@@ -119,11 +148,7 @@ CREATE TABLE `cart` (
 --
 
 INSERT INTO `cart` (`cart_id`, `customer_id`, `product_id`, `quantity`, `added_at`, `price`, `package_size`, `total_price`, `updated_at`) VALUES
-(15, 1, 36, 1, '2025-12-26 13:27:02', 8500.00, '1kg', 8500.00, '2025-12-26 13:52:03'),
-(16, 1, 24, 1, '2025-12-26 14:01:30', 420.00, '1kg', 420.00, '2025-12-26 14:01:30'),
-(17, 1, 28, 1, '2025-12-26 14:01:34', 420.00, '1kg', 420.00, '2025-12-26 14:01:34'),
-(18, 1, 27, 1, '2025-12-26 14:01:43', 33.00, '100g', 33.00, '2025-12-26 14:01:43'),
-(19, 1, 40, 2, '2025-12-26 14:03:08', 145.00, '250g', 290.00, '2025-12-26 14:03:08');
+(34, 1, 10, 1, '2026-03-01 14:44:42', 340.00, '1kg', 340.00, '2026-03-01 14:44:42');
 
 -- --------------------------------------------------------
 
@@ -199,13 +224,87 @@ CREATE TABLE `forecast_data` (
 --
 
 CREATE TABLE `messages` (
-  `message_id` int(11) NOT NULL,
-  `customer_id` int(11) DEFAULT NULL,
-  `admin_id` int(11) DEFAULT NULL,
-  `message` text DEFAULT NULL,
-  `status` enum('Unread','Read') DEFAULT 'Unread',
+  `id` int(11) NOT NULL,
+  `sender_id` int(11) NOT NULL,
+  `sender_role` enum('admin','farmer','customer') NOT NULL,
+  `receiver_id` int(11) NOT NULL,
+  `receiver_role` enum('admin','farmer','customer') NOT NULL,
+  `subject` varchar(255) DEFAULT '',
+  `message` text NOT NULL,
+  `related_order_id` int(11) DEFAULT NULL,
+  `related_product_id` int(11) DEFAULT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `messages`
+--
+
+INSERT INTO `messages` (`id`, `sender_id`, `sender_role`, `receiver_id`, `receiver_role`, `subject`, `message`, `related_order_id`, `related_product_id`, `is_read`, `created_at`) VALUES
+(1, 1, 'admin', 1, 'customer', 'Order #2 Confirmed', 'Your order has been confirmed and will be shipped soon.', NULL, NULL, 0, '2026-01-16 16:25:21'),
+(3, 1, 'customer', 1, 'customer', 'Re: Order #2 Confirmed', 'thank you for the confirmation.', NULL, NULL, 0, '2026-02-26 14:36:31'),
+(11, 2, 'farmer', 1, 'customer', 'Regarding your request: pandan leaves', 'can I know the exact date product need to be delivered?', NULL, NULL, 0, '2026-02-28 15:11:59');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `messages_new`
+--
+
+CREATE TABLE `messages_new` (
+  `id` int(11) NOT NULL,
+  `sender_id` int(11) NOT NULL,
+  `sender_role` enum('admin','farmer','customer') NOT NULL,
+  `receiver_id` int(11) NOT NULL,
+  `receiver_role` enum('admin','farmer','customer') NOT NULL,
+  `subject` varchar(255) DEFAULT '',
+  `message` text NOT NULL,
+  `related_order_id` int(11) DEFAULT NULL,
+  `related_product_id` int(11) DEFAULT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `notifications`
+--
+
+CREATE TABLE `notifications` (
+  `notification_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `message` text NOT NULL,
+  `target_roles` enum('all','customers','farmers','admins','specific') DEFAULT 'all',
+  `target_user_id` int(11) DEFAULT NULL,
+  `sender_id` int(11) NOT NULL,
+  `sender_role` enum('admin','farmer','customer') DEFAULT 'admin',
+  `is_important` tinyint(1) DEFAULT 0,
+  `expires_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `notifications`
+--
+
+INSERT INTO `notifications` (`notification_id`, `title`, `message`, `target_roles`, `target_user_id`, `sender_id`, `sender_role`, `is_important`, `expires_at`, `created_at`) VALUES
+(1, 'Welcome to SpiceCeylon!', 'Thank you for joining our community. Explore our fresh spices directly from Sri Lankan farmers.', 'all', NULL, 1, 'admin', 0, NULL, '2026-01-16 16:23:51'),
+(2, 'New Features Available', 'Check out our new messaging system to communicate directly with admins and farmers.', 'all', NULL, 1, 'admin', 0, NULL, '2026-01-16 16:23:51'),
+(3, 'Farmers: Stock Updates', 'Remember to update your stock levels regularly for accurate customer orders.', 'farmers', NULL, 1, 'admin', 0, NULL, '2026-01-16 16:23:51'),
+(4, 'Customers: Order Tracking', 'You can now track your order status and receive updates via messages.', 'customers', NULL, 1, 'admin', 0, NULL, '2026-01-16 16:23:51'),
+(5, 'Important: Harvest Season', 'The cinnamon harvest season is starting next week. Please prepare your stock.', 'farmers', NULL, 1, 'admin', 1, NULL, '2026-01-16 16:25:21'),
+(6, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 17:44:45'),
+(7, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Completed. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 17:44:57'),
+(8, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:14:13'),
+(9, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:15:23'),
+(10, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:15:46'),
+(11, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:33:58'),
+(12, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:41:58'),
+(13, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:42:20'),
+(14, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:48:52'),
+(15, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:49:12');
 
 -- --------------------------------------------------------
 
@@ -241,11 +340,13 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`order_id`, `customer_id`, `total`, `total_amount`, `shipping_fee`, `final_total`, `shipping_name`, `shipping_phone`, `shipping_address`, `shipping_city`, `shipping_postal`, `payment_method`, `payment_status`, `notes`, `admin_notes`, `status`, `is_deleted`, `order_date`, `created_at`, `updated_at`) VALUES
-(2, 1, NULL, 1700.00, 200.00, 1900.00, 'sripali', '0543256712', 'kandy', 'kandy', '21000', 'cash_on_delivery', 'pending', '', '', 'Pending', 0, '2025-12-05 13:04:51', '2025-12-05 13:04:51', '2025-12-24 08:17:06'),
-(3, 1, NULL, 750.00, 200.00, 950.00, 'wer', '2345', 'sdfg', 'dfg', '234', 'credit_card', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:06:20', '2025-12-05 13:06:20', '2025-12-23 13:30:03'),
-(5, 1, NULL, 8500.00, 200.00, 8700.00, 'ishara', '0352234657', 'colombo,srilanka', 'colombo', '1234', 'credit_card', 'pending', '2 packs for travel', NULL, 'Pending', 0, '2025-12-05 13:33:02', '2025-12-05 13:33:02', '2025-12-23 08:18:42'),
-(6, 1, NULL, 840.00, 200.00, 1040.00, 'ishara', '12345', 'colombo', 'colombo', '21345', 'cash_on_delivery', 'pending', '', '', 'Shipped', 0, '2025-12-05 13:54:53', '2025-12-05 13:54:53', '2025-12-24 08:17:52'),
-(7, 1, NULL, 1600.00, 200.00, 1928.00, 'sripali', '0762541960', 'debathgama,kegalle', 'kegalle', '71000', 'cash_on_delivery', 'pending', 'no.', NULL, 'Pending', 0, '2025-12-24 13:56:54', '2025-12-24 13:56:54', '2025-12-24 13:56:54');
+(2, 1, NULL, 1700.00, 200.00, 1900.00, 'sripali', '0543256712', 'kandy', 'kandy', '21000', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:04:51', '2025-12-05 13:04:51', '2026-02-28 15:19:40'),
+(3, 1, NULL, 750.00, 200.00, 950.00, 'wer', '2345', 'sdfg', 'dfg', '234', 'credit_card', 'pending', '', '', 'Delivered', 0, '2025-12-05 13:06:20', '2025-12-05 13:06:20', '2026-02-24 17:16:44'),
+(5, 1, NULL, 8500.00, 200.00, 8700.00, 'ishara', '0352234657', 'colombo,srilanka', 'colombo', '1234', 'credit_card', 'pending', '2 packs for travel', '', 'Processing', 0, '2025-12-05 13:33:02', '2025-12-05 13:33:02', '2026-02-24 18:03:57'),
+(6, 1, NULL, 840.00, 200.00, 1040.00, 'ishara', '12345', 'colombo', 'colombo', '21345', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:54:53', '2025-12-05 13:54:53', '2026-02-28 15:18:58'),
+(7, 1, NULL, 1600.00, 200.00, 1928.00, 'sripali', '0762541960', 'debathgama,kegalle', 'kegalle', '71000', 'cash_on_delivery', 'pending', 'no.', '', 'Confirmed', 0, '2025-12-24 13:56:54', '2025-12-24 13:56:54', '2026-02-28 14:50:21'),
+(8, 1, NULL, 1870.00, 200.00, 2219.60, 'sripali', '0761234567', 'debathgama,kegalle', 'kandy', '12345', 'cash_on_delivery', 'pending', '', NULL, 'Pending', 0, '2026-02-26 16:08:08', '2026-02-26 16:08:08', '2026-02-26 16:08:08'),
+(9, 1, NULL, 2130.00, 200.00, 2500.40, 'sripali', '0761234567', 'debathgama,kegalle', 'maharagama', '10230', 'cash_on_delivery', 'pending', '', '', 'Shipped', 0, '2026-02-28 16:01:46', '2026-02-28 16:01:46', '2026-02-28 16:07:30');
 
 -- --------------------------------------------------------
 
@@ -273,7 +374,13 @@ INSERT INTO `order_items` (`order_item_id`, `order_id`, `product_id`, `quantity`
 (5, 5, 36, 1, 8500.00, 8500.00),
 (6, 6, 43, 2, 420.00, 840.00),
 (7, 7, 25, 2, 450.00, 900.00),
-(8, 7, 29, 2, 350.00, 700.00);
+(8, 7, 29, 2, 350.00, 700.00),
+(9, 8, 28, 4, 420.00, 1680.00),
+(10, 8, 17, 1, 190.00, 190.00),
+(11, 9, 31, 1, 580.00, 580.00),
+(12, 9, 3, 1, 890.00, 890.00),
+(13, 9, 21, 1, 280.00, 280.00),
+(14, 9, 7, 1, 380.00, 380.00);
 
 -- --------------------------------------------------------
 
@@ -301,7 +408,15 @@ INSERT INTO `order_status_history` (`history_id`, `order_id`, `status`, `changed
 (4, 6, 'Processing', 1, '', '2025-12-24 04:39:38'),
 (5, 2, 'Cancelled', 1, 'Cancelled by admin', '2025-12-24 04:39:53'),
 (6, 2, 'Pending', 1, '', '2025-12-24 08:17:06'),
-(7, 6, 'Shipped', 1, '', '2025-12-24 08:17:52');
+(7, 6, 'Shipped', 1, '', '2025-12-24 08:17:52'),
+(8, 3, 'Delivered', 1, '', '2026-02-24 17:16:44'),
+(9, 7, 'Completed', 1, '', '2026-02-24 18:03:45'),
+(10, 5, 'Processing', 1, '', '2026-02-24 18:03:57'),
+(11, 7, 'Confirmed', 1, '', '2026-02-28 14:50:21'),
+(12, 6, 'Confirmed', 1, '', '2026-02-28 15:18:58'),
+(13, 2, 'Completed', 1, '', '2026-02-28 15:19:33'),
+(14, 2, 'Confirmed', 1, '', '2026-02-28 15:19:40'),
+(15, 9, 'Shipped', 1, '', '2026-02-28 16:07:30');
 
 -- --------------------------------------------------------
 
@@ -340,6 +455,29 @@ INSERT INTO `page_content` (`content_id`, `page_name`, `section`, `title`, `cont
 (12, 'about', 'story', 'Our Story', '<div>Founded in 2020, SpiceCeylon began with a simple vision: to bring authentic Sri Lankan spices directly from farmers to consumers worldwide.</div><div>Our journey started in the heart of Sri Lanka\'s spice-growing regions, where we witnessed first-hand the challenges faced by local farmers in reaching global markets. We created a platform that eliminates middlemen, ensuring farmers receive fair prices while customers enjoy premium quality spices at reasonable rates.</div><div>Today, we work with over 200 farmers across Sri Lanka, bringing you spices that are not only delicious but also ethically sourced and sustainably grown.</div><div>To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.</p></div><div><br></div>', '../assets/images/about/story-image.jpg', 0, '2025-12-26 07:06:32', '2025-12-26 07:49:18'),
 (13, 'about', 'timeline', 'Our Journey', '[{\"year\":\"2020\",\"title\":\"The Beginning\",\"desc\":\"SpiceCeylon founded with 5 partner farmers in Kandy\"},{\"year\":\"2021\",\"title\":\"Expansion\",\"desc\":\"Expanded to 50 farmers across 3 regions. Launched e-commerce platform\"},{\"year\":\"2022\",\"title\":\"International\",\"desc\":\"Started exporting to 10 countries. Received organic certification\"},{\"year\":\"2023\",\"title\":\"Today\",\"desc\":\"200+ farmers, 50+ spice varieties, serving customers worldwide\"}]', '', 0, '2025-12-26 07:06:32', '2025-12-26 07:08:13'),
 (14, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"50+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', '', 0, '2025-12-26 07:06:32', '2025-12-26 07:08:13');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `password_resets`
+--
+
+CREATE TABLE `password_resets` (
+  `reset_id` int(11) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `expiry` datetime NOT NULL,
+  `used` tinyint(1) DEFAULT 0,
+  `user_type` enum('user','admin') DEFAULT 'user',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `password_resets`
+--
+
+INSERT INTO `password_resets` (`reset_id`, `email`, `token`, `expiry`, `used`, `user_type`, `created_at`) VALUES
+(1, 's@gmail.com', '31811f3b51a0c627d1adad075485f822b69a1a33872d724e95256bd10ebeaec6085654ec2e9c975d88d1a4606531bb345d46', '2026-02-24 11:47:54', 0, 'user', '2026-02-24 10:32:54');
 
 -- --------------------------------------------------------
 
@@ -420,49 +558,49 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`product_id`, `farmer_id`, `name`, `description`, `category`, `price`, `stock`, `image`, `status`, `created_at`, `admin_approved`, `approved_by`, `approved_at`, `rejection_reason`) VALUES
-(1, 2, 'Cinnamon', 'Sweet and aromatic Ceylon cinnamon bark, true cinnamon with delicate flavor.', 'Whole Spices', 450.00, 200, 'cinnamon.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:26:58', NULL),
-(2, 2, 'Cardamom', 'Aromatic green cardamom pods with intense flavor and medicinal properties.', 'Whole Spices', 1250.00, 150, 'cardamom.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:24', NULL),
-(3, 2, 'Cloves', 'Aromatic flower buds with warm, sweet flavor, perfect for meat dishes and teas.', 'Whole Spices', 890.00, 120, 'cloves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:16', NULL),
-(4, 3, 'Nutmeg', 'Warm, nutty spice perfect for both sweet and savory dishes, freshly ground.', 'Whole Spices', 750.00, 95, 'nutmeg.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:59', NULL),
-(5, 3, 'Mace', 'Delicate spice from nutmeg covering, with subtle flavor for baking and sauces.', 'Whole Spices', 920.00, 80, 'mace.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:02', NULL),
-(6, 3, 'Black Pepper', 'Freshly ground black pepper with robust flavor and heat, freshly harvested.', 'Whole Spices', 650.00, 180, 'black_pepper.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:38:21', NULL),
-(7, 3, 'Cumin Seeds', 'Warm, earthy seeds with distinctive aroma, essential for curry powders.', 'Spices', 380.00, 160, 'cumin_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:05', NULL),
-(8, 3, 'Coriander Seeds', 'Mild, citrusy seeds essential for curry powders and spice blends.', 'Spices', 290.00, 170, 'coriander_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'pending', NULL, NULL, NULL),
-(9, 3, 'Fennel Seeds', 'Sweet, licorice-flavored seeds for cooking and digestive health.', 'Whole Spices', 350.00, 140, 'fennel_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:09', NULL),
-(10, 3, 'Fenugreek Seeds', 'Bitter seeds used in curry powders and traditional medicinal preparations.', 'Whole Spices', 340.00, 110, 'fenugreek_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:27:18', NULL),
-(11, 3, 'Mustard Seeds', 'Tiny seeds that pack a punch of flavor when tempered in oil.', 'Whole Spices', 310.00, 130, 'mustard_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:12', NULL),
-(12, 3, 'Turmeric', 'Golden yellow spice with earthy flavor and powerful health benefits.', 'Roots & Bulbs', 320.00, 200, 'turmeric.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 13:36:00', NULL),
-(13, 3, 'Vanilla', 'Premium vanilla beans with rich, sweet aroma and flavor for baking.', 'Fruits & Pods', 2800.00, 80, 'vanilla.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:14', NULL),
-(14, 3, 'Sesame Seeds', 'Nutty seeds perfect for both sweets and savory dishes, rich in calcium.', 'Whole Spices', 380.00, 150, 'sesame_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'pending', NULL, NULL, NULL),
-(15, 3, 'Pandan Leaves', 'Fragrant leaves used for flavoring rice, desserts, and drinks.', 'Leaves & Herbs', 220.00, 100, 'pandan_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:28', NULL),
-(16, 3, 'Curry Leaves', 'Aromatic leaves essential for Sri Lankan tempering and curry dishes.', 'Leaves & Herbs', 180.00, 150, 'curry_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:33', NULL),
-(17, 3, 'Lemongrass', 'Citrusy stalks used for teas, curries, and soups, freshly cut.', 'Leaves & Herbs', 190.00, 120, 'lemongrass.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:18', NULL),
-(18, 3, 'Sri Lankan Ginger', 'Fresh, aromatic ginger with strong flavor and medicinal properties.', 'Roots & Bulbs', 280.00, 130, 'ginger.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:39', NULL),
-(19, 3, 'Garlic', 'Fresh local garlic bulbs with robust flavor for cooking.', 'Roots & Bulbs', 320.00, 200, 'garlic.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:21', NULL),
-(20, 3, 'Ceylon Citron / Lemon', 'Fresh Ceylon lemons with aromatic zest and juice.', 'Fruits & Pods', 150.00, 180, 'lemon.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:43', NULL),
-(21, 2, 'Bay Leaves', 'Aromatic leaves ideal for flavoring soups, stews, and rice dishes.', 'Leaves & Herbs', 280.00, 120, 'bay_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:44', NULL),
-(22, 2, 'Star Anise', 'Star-shaped spice with distinctive licorice flavor for soups and meats.', 'Whole Spices', 950.00, 100, 'star_anise.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:48', NULL),
-(23, 2, 'Asafoetida', 'Strong aromatic resin used as a flavor enhancer in vegetarian cooking.', 'Specialty Spices', 680.00, 90, 'asafoetida.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:42:11', NULL),
-(24, 2, 'Celery Seeds', 'Tiny seeds with intense celery flavor for cooking and pickling.', 'Whole Spices', 420.00, 110, 'celery_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:53', NULL),
-(25, 2, 'Ceylon Chili / Bird\'s Eye Chili', 'Small but extremely hot chilies essential for Sri Lankan cuisine.', 'Chilies & Peppers', 450.00, 140, 'ceylon_chili.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:52', NULL),
-(26, 2, 'Chili Powder', 'Finely ground red chili powder for adding heat and color to dishes.', 'Chilies & Peppers', 380.00, 160, 'chili_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:55', NULL),
-(27, 2, 'Black Mustard Seeds', 'Sharp, pungent mustard seeds for tempering and pickling.', 'Whole Spices', 330.00, 120, 'black_mustard_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:58', NULL),
-(28, 2, 'Goraka', 'Sour fruit used as a natural souring agent in Sri Lankan cooking.', 'Fruits & Pods', 420.00, 90, 'goraka.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:00', NULL),
-(29, 2, 'Tamarind', 'Tangy fruit pulp used for adding sour flavor to curries and chutneys.', 'Fruits & Pods', 350.00, 110, 'tamarind.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:03', NULL),
-(30, 2, 'Screw Pine / Kewra', 'Aromatic flowers used for flavoring desserts and rice dishes.', 'Fruits & Pods', 1200.00, 60, 'screw_pine.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:06', NULL),
-(31, 2, 'Licorice Powder', 'Sweet, aromatic powder used in teas and traditional medicine.', 'Powders & Pastes', 580.00, 85, 'licorice_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:08', NULL),
-(32, 2, 'Annatto Seeds', 'Natural coloring seeds that impart yellow-orange color to food.', 'Whole Spices', 410.00, 95, 'annatto_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:10', NULL),
-(33, 2, 'Ajwain (Carom Seeds)', 'Pungent seeds with thyme-like flavor, good for digestion.', 'Spices', 360.00, 100, 'ajwain.jpg', 'Pending', '2025-11-23 11:14:12', 'pending', 1, '2025-12-24 14:51:24', NULL),
-(34, 2, 'Dill', 'Fresh dill leaves with mild anise flavor for salads and fish dishes.', 'Leaves & Herbs', 270.00, 110, 'dill.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:14', NULL),
-(35, 2, 'Sweet Flag', 'Medicinal herb with aromatic roots, used in traditional remedies.', 'Leaves & Herbs', 890.00, 70, 'sweet_flag.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:38:25', NULL),
-(36, 2, 'Saffron', 'World\'s most precious spice, hand-picked crimson threads for premium dishes.', 'Specialty Spices', 8500.00, 30, 'saffron.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:18', NULL),
-(37, 2, 'Poppy Seeds', 'Tiny blue seeds perfect for baking and thickening curries.', 'Whole Spices', 520.00, 95, 'poppy_seeds.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:27:07', NULL),
-(38, 2, 'Caraway Seeds', 'Aromatic seeds traditionally used in breads and European dishes.', 'Whole Spices', 480.00, 100, 'caraway_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:27', NULL),
-(39, 2, 'Juniper Berries', 'Aromatic berries excellent for flavoring meats, sauces, and gin.', 'Whole Spices', 720.00, 85, 'juniper_berries.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:29', NULL),
+(1, 2, 'Cinnamon- කුරුඳු (Kurundu)', 'Sweet and aromatic Ceylon cinnamon bark, true cinnamon with delicate flavor.', 'Whole Spices', 450.00, 200, 'cinnamon.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:26:58', NULL),
+(2, 2, 'Cardamom - එනසාල් (Enasal)\r\n\r\n', 'Aromatic green cardamom pods with intense flavor and medicinal properties.', 'Whole Spices', 1260.00, 124, 'cardamom.jpg', 'Pending', '2025-11-23 11:14:12', 'pending', 1, '2025-12-23 18:36:24', NULL),
+(3, 2, 'Cloves- කරාබුනැටි (Karabu Nati)\r\n\r\n', 'Aromatic flower buds with warm, sweet flavor, perfect for meat dishes and teas.', 'Whole Spices', 890.00, 120, 'cloves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:16', NULL),
+(4, 3, 'Nutmeg - සාදික්කා (Sadikka)', 'Warm, nutty spice perfect for both sweet and savory dishes, freshly ground.', 'Whole Spices', 750.00, 95, 'nutmeg.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:59', NULL),
+(5, 3, 'Mace- වසාවාසි (Wasawasi)', 'Delicate spice from nutmeg covering, with subtle flavor for baking and sauces.', 'Whole Spices', 920.00, 80, 'mace.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:02', NULL),
+(6, 3, 'Black Pepper - ගම්මිරිස් (Gammiris)\r\n\r\n', 'Freshly ground black pepper with robust flavor and heat, freshly harvested.', 'Whole Spices', 650.00, 180, 'black_pepper.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:38:21', NULL),
+(7, 3, 'Cumin Seeds - සූදුරු (Suduru)', 'Warm, earthy seeds with distinctive aroma, essential for curry powders.', 'Spices', 380.00, 160, 'cumin_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:05', NULL),
+(8, 3, 'Coriander Seeds - කොත්තමල්ලි (Koththamalli)', 'Mild, citrusy seeds essential for curry powders and spice blends.', 'Spices', 290.00, 170, 'coriander_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'pending', NULL, NULL, NULL),
+(9, 3, 'Fennel Seeds - මාදුරු (Maduru)', 'Sweet, licorice-flavored seeds for cooking and digestive health.', 'Whole Spices', 350.00, 140, 'fennel_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:09', NULL),
+(10, 3, 'Fenugreek Seeds - උළුහාල් (Uluhal)', 'Bitter seeds used in curry powders and traditional medicinal preparations.', 'Whole Spices', 340.00, 110, 'fenugreek_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:27:18', NULL),
+(11, 3, 'Mustard Seeds - අබ (Aba)', 'Tiny seeds that pack a punch of flavor when tempered in oil.', 'Whole Spices', 310.00, 130, 'mustard_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:12', NULL),
+(12, 3, 'Turmeric - කහ (Kaha)', 'Golden yellow spice with earthy flavor and powerful health benefits.', 'Roots & Bulbs', 320.00, 200, 'turmeric.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 13:36:00', NULL),
+(13, 3, 'Vanilla - වැනිලා', 'Premium vanilla beans with rich, sweet aroma and flavor for baking.', 'Fruits & Pods', 2800.00, 80, 'vanilla.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:14', NULL),
+(14, 3, 'Sesame Seeds - තල (Thala)', 'Nutty seeds perfect for both sweets and savory dishes, rich in calcium.', 'Whole Spices', 380.00, 150, 'sesame_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'pending', NULL, NULL, NULL),
+(15, 3, 'Pandan Leaves - රම්පේ (Rampé)', 'Fragrant leaves used for flavoring rice, desserts, and drinks.', 'Leaves & Herbs', 220.00, 100, 'pandan_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:28', NULL),
+(16, 3, 'Curry Leaves - කරපිංචා (Karapincha)', 'Aromatic leaves essential for Sri Lankan tempering and curry dishes.', 'Leaves & Herbs', 180.00, 150, 'curry_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:33', NULL),
+(17, 3, 'Lemongrass - සේර (Sera)', 'Citrusy stalks used for teas, curries, and soups, freshly cut.', 'Leaves & Herbs', 190.00, 120, 'lemongrass.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:18', NULL),
+(18, 3, 'Sri Lankan Ginger - ඉඟුරු (Inguru)', 'Fresh, aromatic ginger with strong flavor and medicinal properties.', 'Roots & Bulbs', 280.00, 130, 'ginger.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:39', NULL),
+(19, 3, 'Garlic - සුදු ලූනු (Sudu Lunu)', 'Fresh local garlic bulbs with robust flavor for cooking.', 'Roots & Bulbs', 320.00, 200, 'garlic.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:21', NULL),
+(20, 3, 'Ceylon Citron / Lemon - දෙහි (Dehi)', 'Fresh Ceylon lemons with aromatic zest and juice.', 'Fruits & Pods', 150.00, 180, 'lemon.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 15:26:43', NULL),
+(21, 2, 'Bay Leaves -  බේ කොළ (Bay Kola)', 'Aromatic leaves ideal for flavoring soups, stews, and rice dishes.', 'Leaves & Herbs', 280.00, 120, 'bay_leaves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:44', NULL),
+(22, 2, 'Star Anise- තරු අසමෝදගම් (tharu asamodagam)', 'Star-shaped spice with distinctive licorice flavor for soups and meats.\r\n\r\nUsage: Used to flavor rice (biryani), curries, and sometimes tea.', 'Whole Spices', 950.00, 100, 'star_anise.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:48', NULL),
+(23, 2, 'Asafoetida- පෙරුම්කායම් (Perumkayam)\r\n\r\n', 'Strong aromatic resin used as a flavor enhancer in vegetarian cooking.\r\n\r\nUses: Primarily used for its strong savory, onion-like flavor in tempering (curries) and as a digestive aid.', 'Specialty Spices', 680.00, 90, 'asafoetida.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:42:11', NULL),
+(24, 2, 'Celery Seeds - සැල්දිරි ඇට (Saldeeri Aeta)', 'Tiny seeds with intense celery flavor for cooking and pickling.', 'Whole Spices', 420.00, 110, 'celery_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:37:53', NULL),
+(25, 2, 'Ceylon Chili / Bird\'s Eye Chili - කොච්චි (Kochchi)', 'Small but extremely hot chilies essential for Sri Lankan cuisine.', 'Chilies & Peppers', 450.00, 140, 'ceylon_chili.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:52', NULL),
+(26, 2, 'Chili Powder - මිරිස් කුඩු (Miris Kudu)', 'Finely ground red chili powder for adding heat and color to dishes.', 'Chilies & Peppers', 380.00, 160, 'chili_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:55', NULL),
+(27, 2, 'Black Mustard Seeds - කළු අබ (Kalu Aba)', 'Sharp, pungent mustard seeds for tempering and pickling.', 'Whole Spices', 330.00, 120, 'black_mustard_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:50:58', NULL),
+(28, 2, 'Goraka - ගොරකා (Goraka)', 'Sour fruit used as a natural souring agent in Sri Lankan cooking.', 'Fruits & Pods', 420.00, 90, 'goraka.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:00', NULL),
+(29, 2, 'Tamarind - සියඹලා (Siyambala)', 'Tangy fruit pulp used for adding sour flavor to curries and chutneys.', 'Fruits & Pods', 350.00, 110, 'tamarind.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:03', NULL),
+(30, 2, 'Screw Pine / Kewra- වැටකෙයියා (Wetakeiya)', 'Aromatic flowers used for flavoring desserts and rice dishes.\r\n\r\nKewra Water/Essence: The fragrant male flowers of the Wetakeiya plant are used to produce kewra water or kewra essence, a popular flavoring agent in South Asian cuisine (rice dishes, desserts).\r\n\r\nLeaves: The leaves of the screw pine, or closely related Pandan (Pandanus amaryllifolius), are used in Southeast Asian and Sri Lankan cooking to add a distinct aroma, often described as similar to basmati rice. \r\n\r\n', 'Fruits & Pods', 1200.00, 60, 'screw_pine.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:06', NULL),
+(31, 2, 'Licorice Powder - වැල්මී කුඩු (Welmee Kudu)', 'Sweet, aromatic powder used in teas and traditional medicine.', 'Powders & Pastes', 580.00, 85, 'licorice_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:08', NULL),
+(32, 2, 'Annatto Seeds - කහට කුරුඳු (Kahata Kurundu)', 'Natural coloring seeds that impart yellow-orange color to food.', 'Whole Spices', 410.00, 95, 'annatto_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:10', NULL),
+(34, 2, 'Dill -  ඩිල්', 'Fresh dill leaves with mild anise flavor for salads and fish dishes.', 'Leaves & Herbs', 270.00, 110, 'dill.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:14', NULL),
+(35, 2, 'Sweet Flag - වදකහ (Wadakaha)', 'A spice and Medicinal herb with aromatic roots, used in traditional remedies.\r\nOften used for digestive issues, stomach ailments, and to add a unique aroma to food.', 'Leaves & Herbs', 890.00, 70, 'sweet_flag.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:38:25', NULL),
+(36, 2, 'Saffron - කුංකුම (Kunkuma)', 'World\'s most precious spice, hand-picked crimson threads for premium dishes.', 'Specialty Spices', 8500.00, 30, 'saffron.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:18', NULL),
+(37, 2, 'Poppy Seeds - පොපි ඇට (Popi äta)', 'Tiny blue seeds perfect for baking and thickening curries.', 'Whole Spices', 520.00, 95, 'poppy_seeds.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:27:07', NULL),
+(38, 2, 'Caraway Seeds - සුවඳ සූදුරු (Suwanda Suduru)', 'Aromatic seeds traditionally used in breads and European dishes.\r\n\r\nUsage: Used in local spice blends, herbal remedies, curries, and to relieve digestive issues.\r\n\r\nDistinction: Caraway is different from common Sri Lankan cumin (Suduru).', 'Whole Spices', 480.00, 100, 'caraway_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:27', NULL),
+(39, 2, 'Juniper Berries - (Haubera, Aaraar.)', 'Aromatic berries excellent for flavoring meats, sauces, and gin.', 'Whole Spices', 720.00, 85, 'juniper_berries.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:29', NULL),
 (40, 2, 'Sumac', 'Tangy crimson spice with lemony flavor for seasoning and marinades.', 'Specialty Spices', 580.00, 110, 'sumac.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:33', NULL),
-(41, 2, 'Roasted Curry Powder', 'Traditional Sri Lankan roasted curry powder with complex flavors.', 'Powders & Pastes', 550.00, 150, 'roasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:35', NULL),
-(42, 2, 'Unroasted Curry Powder', 'Mild, unroasted curry powder for light-colored dishes.', 'Powders & Pastes', 520.00, 140, 'unroasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:37', NULL),
-(43, 2, 'Chili Paste', 'Freshly ground chili paste for instant heat and flavor in cooking.', 'Chilies & Peppers', 420.00, 120, 'chili_paste.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:39', NULL);
+(41, 2, 'Roasted Curry Powder - බැදපු කරි කුඩු (Badapu Kari Kudu)', 'Traditional Sri Lankan roasted curry powder with complex flavors.', 'Powders & Pastes', 550.00, 150, 'roasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:35', NULL),
+(42, 2, 'Unroasted Curry Powder - අමු කරි කුඩු (Amu Kari Kudu)', 'Mild, unroasted curry powder for light-colored dishes.', 'Powders & Pastes', 520.00, 140, 'unroasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:37', NULL),
+(43, 2, 'Chili Paste - මිරිස් පේස්ට් (Miris Paste)', 'Freshly ground chili paste for instant heat and flavor in cooking.', 'Chilies & Peppers', 420.00, 120, 'chili_paste.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:39', NULL),
+(44, 2, 'Dried Ginger Sweet Candy- වියළි ඉඟුරු රසකැවිල්ල (Viyali Inguru Rasakawilla)', '200gm Dried Ginger Sweet Candy , Flavoured Ginger Slices | Mouth Fresher, Cough Relief, Immunity Booster', 'Specialty Spices', 3450.00, 5, 'Candied-Ginger.jpg', 'Pending', '2026-02-28 14:03:49', 'pending', NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -490,7 +628,10 @@ CREATE TABLE `product_requests` (
 --
 
 INSERT INTO `product_requests` (`request_id`, `customer_id`, `product_name`, `category`, `description`, `quantity_requested`, `urgency`, `status`, `admin_notes`, `created_at`, `updated_at`, `assigned_farmer_id`) VALUES
-(1, 1, 'pandan leaves', 'Leaves & Herbs', 'need for overseas travelling.', 1, 'High', 'Pending', NULL, '2025-12-24 10:32:45', NULL, NULL);
+(1, 1, 'pandan leaves', 'Leaves & Herbs', 'need for overseas travelling.', 1, 'High', '', '[Farmer Update: 2026-03-01 19:49:12 - Status changed to: Accepted]', '2025-12-24 10:32:45', '2026-03-01 18:49:12', 2),
+(2, 1, 'vanilla', 'Specialty Spices', 'need dried vanilla 10kg', 10, 'Medium', 'Pending', NULL, '2026-01-22 19:58:25', NULL, NULL),
+(3, 1, 'turmeric', 'Roots & Bulbs', 'need for shop', 5, 'Medium', 'Approved', NULL, '2026-01-22 19:59:52', '2026-01-22 20:15:33', 3),
+(4, 1, 'Cinnoman', 'Whole Spices', 'can i get the Cinnamon powders 2kg?', 2, 'Low', 'Pending', NULL, '2026-02-26 15:41:31', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -547,6 +688,14 @@ CREATE TABLE `request_history` (
   `changed_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `request_history`
+--
+
+INSERT INTO `request_history` (`history_id`, `request_id`, `changed_by_admin`, `old_status`, `new_status`, `notes`, `changed_at`) VALUES
+(1, 1, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-01-22 19:49:52'),
+(2, 3, 1, 'Pending', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-01-22 20:15:33');
+
 -- --------------------------------------------------------
 
 --
@@ -583,7 +732,8 @@ CREATE TABLE `reviews` (
 --
 
 INSERT INTO `reviews` (`review_id`, `customer_id`, `product_id`, `rating`, `comment`, `created_at`) VALUES
-(1, 1, 36, 5, 'best product', '2025-12-26 13:27:11');
+(1, 1, 36, 5, 'best product', '2025-12-26 13:27:11'),
+(2, 1, 24, 5, 'This Celery Seed was perfect for what I needed for my pickle relish and pickles this year. It is very cot effective and I will most certainly be ordering more.', '2026-02-23 16:50:51');
 
 -- --------------------------------------------------------
 
@@ -709,17 +859,100 @@ CREATE TABLE `users` (
   `profile_image` varchar(255) DEFAULT 'default-avatar.jpg',
   `is_registered` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-  `status` enum('pending','approved','active','inactive','suspended','rejected') NOT NULL DEFAULT 'pending' COMMENT 'User account status: pending=waiting approval, approved=approved but not active yet'
+  `status` enum('pending','approved','active','inactive','suspended','rejected') NOT NULL DEFAULT 'pending' COMMENT 'User account status: pending=waiting approval, approved=approved but not active yet',
+  `email_notifications` tinyint(1) DEFAULT 1,
+  `push_notifications` tinyint(1) DEFAULT 1,
+  `last_notification_check` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`user_id`, `name`, `email`, `password`, `phone`, `address`, `role`, `farm_location`, `profile_image`, `is_registered`, `created_at`, `status`) VALUES
-(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0762541960', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active'),
-(2, 'dilshani', 'd@gmail.com', '$2y$10$EtCIkNELPYuX5z9zFza8COnxQ8cpwDMx2AlktKlgvqGoF4xTUaskm', '0812345674', 'pilimathalawa,kandy', 'farmer', 'kandy', 'default-avatar.jpg', 1, '2025-11-15 07:48:09', 'active'),
-(3, 'ranjith edirisinghe', 'r@gmail.com', '$2y$10$W7hhU7TOf4g7vZOlwg7sbeolMA5fQ0mH.m15aDuYICLEv8SGFq8CO', '0352258339', 'nuwaraeliya', 'farmer', 'nuwaraeliya', 'default-avatar.jpg', 1, '2025-12-23 13:03:52', 'active');
+INSERT INTO `users` (`user_id`, `name`, `email`, `password`, `phone`, `address`, `role`, `farm_location`, `profile_image`, `is_registered`, `created_at`, `status`, `email_notifications`, `push_notifications`, `last_notification_check`) VALUES
+(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0761234567', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active', 1, 1, '2026-03-01 19:23:29'),
+(2, 'dilshani', 'd@gmail.com', '$2y$10$L4aUm6Xtp59TDz.YI09bO.rgZn0XlB8GWF/KWzeUtfn1AydINuQ52', '0523465789', '143/B/, 1st Ln, Dehianga, Nuwara Eliya', 'farmer', 'kandy / Nuwara Eliya', 'default-avatar.jpg', 1, '2025-11-15 07:48:09', 'active', 1, 1, '2026-03-01 14:46:45'),
+(3, 'ranjith edirisinghe', 'r@gmail.com', '$2y$10$W7hhU7TOf4g7vZOlwg7sbeolMA5fQ0mH.m15aDuYICLEv8SGFq8CO', '0352258339', 'nuwaraeliya', 'farmer', 'nuwaraeliya', 'default-avatar.jpg', 1, '2025-12-23 13:03:52', 'active', 1, 1, NULL),
+(5, 'Peter Smith', 'peter@gmail.com', '$2y$10$ELuqYyfTpHBXpbdHHQayXuRzJsV2LpWLOT.n.ElQw8ChDa18PR6gW', '0777346982', 'no 07, main street, Colombo', 'customer', '', 'default-avatar.jpg', 1, '2026-02-23 09:37:09', 'pending', 1, 1, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_announcement_status`
+--
+
+CREATE TABLE `user_announcement_status` (
+  `status_id` int(11) NOT NULL,
+  `announcement_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `read_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `user_announcement_status`
+--
+
+INSERT INTO `user_announcement_status` (`status_id`, `announcement_id`, `user_id`, `is_read`, `read_at`, `created_at`) VALUES
+(1, 1, 1, 1, '2026-02-25 12:18:37', '2026-02-25 04:21:30'),
+(2, 1, 2, 1, '2026-02-25 12:45:02', '2026-02-25 04:21:30'),
+(3, 1, 3, 0, NULL, '2026-02-25 04:21:30'),
+(4, 2, 1, 1, '2026-02-25 12:18:37', '2026-02-25 04:21:38'),
+(5, 2, 2, 0, NULL, '2026-02-25 04:21:38'),
+(6, 2, 3, 0, NULL, '2026-02-25 04:21:38');
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `user_notifications_view`
+-- (See below for the actual view)
+--
+CREATE TABLE `user_notifications_view` (
+`notification_id` int(11)
+,`title` varchar(255)
+,`message` text
+,`target_roles` enum('all','customers','farmers','admins','specific')
+,`sender_id` int(11)
+,`sender_role` enum('admin','farmer','customer')
+,`is_important` tinyint(1)
+,`expires_at` timestamp
+,`created_at` timestamp
+,`user_id` int(11)
+,`user_name` varchar(255)
+,`user_email` varchar(255)
+,`user_role` enum('customer','farmer')
+,`is_read` int(4)
+,`read_at` timestamp
+);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `user_notification_status`
+--
+
+CREATE TABLE `user_notification_status` (
+  `status_id` int(11) NOT NULL,
+  `notification_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `is_read` tinyint(1) DEFAULT 0,
+  `read_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `user_notification_status`
+--
+
+INSERT INTO `user_notification_status` (`status_id`, `notification_id`, `user_id`, `is_read`, `read_at`, `created_at`) VALUES
+(1, 3, 2, 1, '2026-01-16 18:41:20', '2026-01-16 18:41:20'),
+(2, 1, 1, 1, '2026-01-22 20:02:02', '2026-01-22 20:02:02'),
+(3, 2, 1, 1, '2026-01-22 20:02:11', '2026-01-22 20:02:07'),
+(4, 4, 1, 1, '2026-02-25 12:10:35', '2026-02-25 12:10:35'),
+(5, 1, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
+(6, 2, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
+(7, 5, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39');
 
 -- --------------------------------------------------------
 
@@ -803,8 +1036,16 @@ CREATE TABLE `wishlist` (
 --
 
 INSERT INTO `wishlist` (`wishlist_id`, `customer_id`, `product_id`, `created_at`) VALUES
-(1, 1, 1, '2025-12-26 13:17:36'),
-(3, 1, 36, '2025-12-26 13:27:04');
+(1, 1, 1, '2025-12-26 13:17:36');
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `user_notifications_view`
+--
+DROP TABLE IF EXISTS `user_notifications_view`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `user_notifications_view`  AS SELECT `n`.`notification_id` AS `notification_id`, `n`.`title` AS `title`, `n`.`message` AS `message`, `n`.`target_roles` AS `target_roles`, `n`.`sender_id` AS `sender_id`, `n`.`sender_role` AS `sender_role`, `n`.`is_important` AS `is_important`, `n`.`expires_at` AS `expires_at`, `n`.`created_at` AS `created_at`, `u`.`user_id` AS `user_id`, `u`.`name` AS `user_name`, `u`.`email` AS `user_email`, `u`.`role` AS `user_role`, coalesce(`uns`.`is_read`,0) AS `is_read`, `uns`.`read_at` AS `read_at` FROM ((`notifications` `n` join `users` `u`) left join `user_notification_status` `uns` on(`n`.`notification_id` = `uns`.`notification_id` and `u`.`user_id` = `uns`.`user_id`)) WHERE (`n`.`target_roles` = 'all' OR `n`.`target_roles` = 'customers' AND `u`.`role` = 'customer' OR `n`.`target_roles` = 'farmers' AND `u`.`role` = 'farmer' OR `n`.`target_roles` = 'admins' AND exists(select 1 from `admins` `a` where `a`.`admin_id` = `u`.`user_id` limit 1) OR `n`.`target_roles` = 'specific' AND `n`.`target_user_id` = `u`.`user_id`) AND (`n`.`expires_at` is null OR `n`.`expires_at` > current_timestamp()) ;
 
 --
 -- Indexes for dumped tables
@@ -829,6 +1070,12 @@ ALTER TABLE `admin_activity`
 ALTER TABLE `admin_logins`
   ADD PRIMARY KEY (`login_id`),
   ADD KEY `admin_id` (`admin_id`);
+
+--
+-- Indexes for table `announcements`
+--
+ALTER TABLE `announcements`
+  ADD PRIMARY KEY (`announcement_id`);
 
 --
 -- Indexes for table `banners`
@@ -867,9 +1114,25 @@ ALTER TABLE `forecast_data`
 -- Indexes for table `messages`
 --
 ALTER TABLE `messages`
-  ADD PRIMARY KEY (`message_id`),
-  ADD KEY `customer_id` (`customer_id`),
-  ADD KEY `admin_id` (`admin_id`);
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_receiver` (`receiver_id`,`receiver_role`,`is_read`),
+  ADD KEY `idx_sender` (`sender_id`,`sender_role`);
+
+--
+-- Indexes for table `messages_new`
+--
+ALTER TABLE `messages_new`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_receiver` (`receiver_id`,`receiver_role`,`is_read`),
+  ADD KEY `idx_sender` (`sender_id`,`sender_role`);
+
+--
+-- Indexes for table `notifications`
+--
+ALTER TABLE `notifications`
+  ADD PRIMARY KEY (`notification_id`),
+  ADD KEY `sender_id` (`sender_id`),
+  ADD KEY `target_user_id` (`target_user_id`);
 
 --
 -- Indexes for table `orders`
@@ -899,6 +1162,14 @@ ALTER TABLE `order_status_history`
 --
 ALTER TABLE `page_content`
   ADD PRIMARY KEY (`content_id`);
+
+--
+-- Indexes for table `password_resets`
+--
+ALTER TABLE `password_resets`
+  ADD PRIMARY KEY (`reset_id`),
+  ADD KEY `email` (`email`),
+  ADD KEY `token` (`token`);
 
 --
 -- Indexes for table `payment_cards`
@@ -1007,6 +1278,21 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `email` (`email`);
 
 --
+-- Indexes for table `user_announcement_status`
+--
+ALTER TABLE `user_announcement_status`
+  ADD PRIMARY KEY (`status_id`),
+  ADD UNIQUE KEY `unique_user_announcement` (`announcement_id`,`user_id`);
+
+--
+-- Indexes for table `user_notification_status`
+--
+ALTER TABLE `user_notification_status`
+  ADD PRIMARY KEY (`status_id`),
+  ADD UNIQUE KEY `unique_notification_user` (`notification_id`,`user_id`),
+  ADD KEY `user_id` (`user_id`);
+
+--
 -- Indexes for table `website_content`
 --
 ALTER TABLE `website_content`
@@ -1061,6 +1347,12 @@ ALTER TABLE `admin_logins`
   MODIFY `login_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `announcements`
+--
+ALTER TABLE `announcements`
+  MODIFY `announcement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `banners`
 --
 ALTER TABLE `banners`
@@ -1070,7 +1362,7 @@ ALTER TABLE `banners`
 -- AUTO_INCREMENT for table `cart`
 --
 ALTER TABLE `cart`
-  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `contact_info`
@@ -1094,31 +1386,49 @@ ALTER TABLE `forecast_data`
 -- AUTO_INCREMENT for table `messages`
 --
 ALTER TABLE `messages`
-  MODIFY `message_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+
+--
+-- AUTO_INCREMENT for table `messages_new`
+--
+ALTER TABLE `messages_new`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `notifications`
+--
+ALTER TABLE `notifications`
+  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
+  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `order_status_history`
 --
 ALTER TABLE `order_status_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
 
 --
 -- AUTO_INCREMENT for table `page_content`
 --
 ALTER TABLE `page_content`
   MODIFY `content_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+
+--
+-- AUTO_INCREMENT for table `password_resets`
+--
+ALTER TABLE `password_resets`
+  MODIFY `reset_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `payment_cards`
@@ -1136,13 +1446,13 @@ ALTER TABLE `payment_methods`
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=44;
+  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=45;
 
 --
 -- AUTO_INCREMENT for table `product_requests`
 --
 ALTER TABLE `product_requests`
-  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `product_reviews`
@@ -1160,7 +1470,7 @@ ALTER TABLE `requests`
 -- AUTO_INCREMENT for table `request_history`
 --
 ALTER TABLE `request_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `request_notifications`
@@ -1172,7 +1482,7 @@ ALTER TABLE `request_notifications`
 -- AUTO_INCREMENT for table `reviews`
 --
 ALTER TABLE `reviews`
-  MODIFY `review_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `review_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `sales`
@@ -1208,7 +1518,19 @@ ALTER TABLE `team_members`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `user_announcement_status`
+--
+ALTER TABLE `user_announcement_status`
+  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `user_notification_status`
+--
+ALTER TABLE `user_notification_status`
+  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `website_content`
@@ -1232,7 +1554,7 @@ ALTER TABLE `website_stats`
 -- AUTO_INCREMENT for table `wishlist`
 --
 ALTER TABLE `wishlist`
-  MODIFY `wishlist_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+  MODIFY `wishlist_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- Constraints for dumped tables
@@ -1267,8 +1589,22 @@ ALTER TABLE `forecast_data`
 -- Constraints for table `messages`
 --
 ALTER TABLE `messages`
-  ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`admin_id`) ON DELETE SET NULL;
+  ADD CONSTRAINT `messages_ibfk_1` FOREIGN KEY (`sender_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `messages_ibfk_2` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `messages_new`
+--
+ALTER TABLE `messages_new`
+  ADD CONSTRAINT `messages_new_ibfk_1` FOREIGN KEY (`sender_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `messages_new_ibfk_2` FOREIGN KEY (`receiver_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `notifications`
+--
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`sender_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `notifications_ibfk_2` FOREIGN KEY (`target_user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `orders`
@@ -1338,6 +1674,13 @@ ALTER TABLE `reviews`
 ALTER TABLE `sales`
   ADD CONSTRAINT `sales_ibfk_1` FOREIGN KEY (`order_id`) REFERENCES `orders` (`order_id`) ON DELETE CASCADE,
   ADD CONSTRAINT `sales_ibfk_2` FOREIGN KEY (`product_id`) REFERENCES `products` (`product_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `user_notification_status`
+--
+ALTER TABLE `user_notification_status`
+  ADD CONSTRAINT `user_notification_status_ibfk_1` FOREIGN KEY (`notification_id`) REFERENCES `notifications` (`notification_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `user_notification_status_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `wishlist`

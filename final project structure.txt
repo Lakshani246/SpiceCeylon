@@ -22,13 +22,21 @@ spiceceylon/
 │   └── videos/
 │       └── landing-video.mp4    # Landing page background video
 │   └──  icons/
+          ├── 
+          ├── facebook.png 
+          ├── pinterest.png 
+          ├── twitter.png 
+          ├── whatsapp.png 
+
 ├── auth/
 │   ├── login.php                # Login page
 │   ├── register.php             # Registration page
 │   ├── logout.php               # Logout script
 │   └── rest_admin.php      # Password reset (if exists)
 │   └── unauthorized.php
-│
+│   └── forgot_password.php
+│   └── reset_password.php
+
 ├── config/
 │   └── db.php                   # Database configuration
 │   └──auth_check.php
@@ -47,6 +55,8 @@ spiceceylon/
 │   └──chekout.php
 │   └──footer.php
 │   └──header.php
+│   └─ messages.php
+│   └─ notifications.php
 │   └──test_actions.php
 │   └──order_success.php
 │   └──view_detail.php
@@ -55,6 +65,7 @@ spiceceylon/
 │   └──add_to_cart.php
 │   └──add_to_wishlist
 │   └──get_cart_count.php
+│   └─get_unread_count.php
 │
 ├── farmer/                      # Farmer user area
 │   ├── dashboard.php            # Farmer dashboard
@@ -66,6 +77,14 @@ spiceceylon/
 │   └──header.php
 │   └──footer.php
 │   └──edit_product.php
+│   └─check_forecast_update.php
+│   └─earnings.php
+│   └─forecasting.php
+│   └─messages.php
+│   └─notifications.php
+│   └─sidebar.php
+├── actions/
+│   └── get_unread_count.php 
 │
 ├── admin/                       # Admin area
 │   ├── dashboard.php            # Admin dashboard
@@ -80,7 +99,13 @@ spiceceylon/
 │   └──admin_profile.php
 │   └──approve_request.php
 │   └──forecast_model.py
-
+│   └──export_forecast.php
+│   └──get_request_count.php
+│   └──messaging_hub.php
+│   └──notifications.php
+│   └──send_annousements.php
+│   └──get_user_details.php
 │
 └── database/
     └── spiceceylon.sql         # Database schema
+│   └──README.md

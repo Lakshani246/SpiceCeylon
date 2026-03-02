@@ -10,6 +10,11 @@ if ($_SESSION['role'] !== 'customer') {
 
 $customer_id = $_SESSION['user_id'];
 
+// ========== FIXED: Get success/error messages from session first ==========
+$success_message = $_SESSION['success_message'] ?? null;
+$error_message = $_SESSION['error_message'] ?? null;
+unset($_SESSION['success_message'], $_SESSION['error_message']);
+
 // Get customer data
 $customer_query = "SELECT * FROM users WHERE user_id = ?";
 $customer_stmt = $conn->prepare($customer_query);
@@ -55,29 +60,57 @@ $notification_stmt->execute();
 $notification_result = $notification_stmt->get_result();
 $new_notifications_count = $notification_result->fetch_assoc()['count'];
 
-// Handle message sending
+// ========== FIXED: Handle message sending with better validation ==========
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_message'])) {
     $receiver_id = $_POST['receiver_id'] ?? '';
     $receiver_role = $_POST['receiver_role'] ?? 'admin';
-    $subject = $_POST['subject'] ?? '';
-    $message = $_POST['message'] ?? '';
-    $related_order_id = $_POST['related_order_id'] ?? null;
-    $related_product_id = $_POST['related_product_id'] ?? null;
+    $subject = trim($_POST['subject'] ?? '');
+    $message = trim($_POST['message'] ?? '');
+    $related_order_id = !empty($_POST['related_order_id']) ? $_POST['related_order_id'] : null;
+    $related_product_id = !empty($_POST['related_product_id']) ? $_POST['related_product_id'] : null;
     
-    if (!empty($message) && !empty($subject)) {
-        $insert_query = "INSERT INTO messages (sender_id, sender_role, receiver_id, receiver_role, subject, message, related_order_id, related_product_id) 
-                         VALUES (?, 'customer', ?, ?, ?, ?, ?, ?)";
-        $insert_stmt = $conn->prepare($insert_query);
-        $insert_stmt->bind_param("iisssii", $customer_id, $receiver_id, $receiver_role, $subject, $message, $related_order_id, $related_product_id);
+    if (!empty($message) && !empty($subject) && !empty($receiver_id)) {
+        // Validate receiver exists
+        $valid_receiver = false;
+        if ($receiver_role === 'admin') {
+            $check_query = "SELECT admin_id FROM admins WHERE admin_id = ? AND status = 'active'";
+            $check_stmt = $conn->prepare($check_query);
+            $check_stmt->bind_param("i", $receiver_id);
+            $check_stmt->execute();
+            $valid_receiver = $check_stmt->get_result()->num_rows > 0;
+        } elseif ($receiver_role === 'farmer') {
+            $check_query = "SELECT user_id FROM users WHERE user_id = ? AND role = 'farmer' AND status = 'active'";
+            $check_stmt = $conn->prepare($check_query);
+            $check_stmt->bind_param("i", $receiver_id);
+            $check_stmt->execute();
+            $valid_receiver = $check_stmt->get_result()->num_rows > 0;
+        }
         
-        if ($insert_stmt->execute()) {
-            $success_message = "Message sent successfully!";
+        if ($valid_receiver) {
+            $insert_query = "INSERT INTO messages (sender_id, sender_role, receiver_id, receiver_role, subject, message, related_order_id, related_product_id) 
+                             VALUES (?, 'customer', ?, ?, ?, ?, ?, ?)";
+            $insert_stmt = $conn->prepare($insert_query);
+            $insert_stmt->bind_param("iisssii", $customer_id, $receiver_id, $receiver_role, $subject, $message, $related_order_id, $related_product_id);
+            
+            if ($insert_stmt->execute()) {
+                $_SESSION['success_message'] = "Message sent successfully to " . ($receiver_role === 'farmer' ? 'farmer' : 'admin') . "!";
+            } else {
+                $_SESSION['error_message'] = "Failed to send message. Please try again.";
+            }
         } else {
-            $error_message = "Failed to send message. Please try again.";
+            $_SESSION['error_message'] = "Invalid recipient selected. Please try again.";
         }
     } else {
-        $error_message = "Please fill in all required fields.";
+        $_SESSION['error_message'] = "Please fill in all required fields.";
     }
+    
+    // Redirect to same page with tab parameter
+    $redirect_url = 'messages.php';
+    if (isset($_GET['tab'])) {
+        $redirect_url .= '?tab=' . $_GET['tab'];
+    }
+    header('Location: ' . $redirect_url);
+    exit();
 }
 
 // Mark message as read if viewing
@@ -87,17 +120,42 @@ if (isset($_GET['read']) && is_numeric($_GET['read'])) {
     $mark_read_stmt = $conn->prepare($mark_read_query);
     $mark_read_stmt->bind_param("ii", $message_id, $customer_id);
     $mark_read_stmt->execute();
+    
+    // Stay on same page
+    $redirect_url = 'messages.php?tab=messages';
+    header('Location: ' . $redirect_url);
+    exit();
 }
 
-// Handle delete message
+// ========== FIXED: Handle delete message with session message ==========
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $message_id = $_GET['delete'];
-    $delete_query = "DELETE FROM messages WHERE id = ? AND (sender_id = ? OR receiver_id = ?)";
-    $delete_stmt = $conn->prepare($delete_query);
-    $delete_stmt->bind_param("iii", $message_id, $customer_id, $customer_id);
-    $delete_stmt->execute();
     
-    header('Location: messages.php');
+    // Verify message belongs to user
+    $verify_query = "SELECT id FROM messages WHERE id = ? AND (sender_id = ? OR receiver_id = ?)";
+    $verify_stmt = $conn->prepare($verify_query);
+    $verify_stmt->bind_param("iii", $message_id, $customer_id, $customer_id);
+    $verify_stmt->execute();
+    
+    if ($verify_stmt->get_result()->num_rows > 0) {
+        $delete_query = "DELETE FROM messages WHERE id = ?";
+        $delete_stmt = $conn->prepare($delete_query);
+        $delete_stmt->bind_param("i", $message_id);
+        
+        if ($delete_stmt->execute()) {
+            $_SESSION['success_message'] = "Message deleted successfully!";
+        } else {
+            $_SESSION['error_message'] = "Failed to delete message. Please try again.";
+        }
+    } else {
+        $_SESSION['error_message'] = "Message not found or you don't have permission to delete it.";
+    }
+    
+    $redirect_url = 'messages.php';
+    if (isset($_GET['tab'])) {
+        $redirect_url .= '?tab=' . $_GET['tab'];
+    }
+    header('Location: ' . $redirect_url);
     exit();
 }
 
@@ -131,11 +189,12 @@ $recent_orders_stmt->bind_param("i", $customer_id);
 $recent_orders_stmt->execute();
 $recent_orders_result = $recent_orders_stmt->get_result();
 
-// Get customer's product requests
+// Get customer's product requests with farmer details
 $customer_requests_query = "
     SELECT pr.*, 
            f.name as farmer_name,
-           f.email as farmer_email
+           f.email as farmer_email,
+           f.user_id as farmer_id
     FROM product_requests pr
     LEFT JOIN users f ON pr.assigned_farmer_id = f.user_id
     WHERE pr.customer_id = ?
@@ -156,7 +215,8 @@ $request_notifications_query = "
            pr.quantity_requested,
            pr.customer_id,
            a.username as admin_name,
-           f.name as farmer_name
+           f.name as farmer_name,
+           f.user_id as farmer_id
     FROM request_history rh
     JOIN product_requests pr ON rh.request_id = pr.request_id
     LEFT JOIN admins a ON rh.changed_by_admin = a.admin_id
@@ -566,6 +626,43 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
             color: #666;
             font-size: 0.9rem;
         }
+        
+        /* Alert messages */
+        .alert {
+            border-radius: 10px;
+            border-left-width: 4px;
+            margin-bottom: 20px;
+            animation: slideDown 0.5s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .alert-success {
+            border-left-color: var(--spice-green);
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .alert-danger {
+            border-left-color: #e74c3c;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .alert-info {
+            border-left-color: var(--spice-blue);
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
     </style>
 </head>
 <body>
@@ -722,6 +819,23 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                     </div>
                 </div>
 
+                <!-- ========== FIXED: Success/Error Messages Display ========== -->
+                <?php if(isset($success_message)): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <?php echo htmlspecialchars($success_message); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+                
+                <?php if(isset($error_message)): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <?php echo htmlspecialchars($error_message); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <?php endif; ?>
+
                 <!-- Tab Navigation -->
                 <ul class="nav nav-tabs mt-4">
                     <li class="nav-item">
@@ -792,20 +906,6 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                         </div>
                     </div>
                     <div class="card-body">
-                        <?php if(isset($success_message)): ?>
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                <?php echo $success_message; ?>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <?php if(isset($error_message)): ?>
-                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                <?php echo $error_message; ?>
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                            </div>
-                        <?php endif; ?>
-                        
                         <?php if($messages_result->num_rows > 0): ?>
                             <div class="messages-list">
                                 <?php 
@@ -1022,6 +1122,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                                         </a>
                                         <?php if($notification['farmer_name']): ?>
                                         <button class="btn btn-sm btn-outline-success message-farmer-btn" 
+                                                data-farmer-id="<?php echo $notification['farmer_id']; ?>"
                                                 data-farmer-name="<?php echo htmlspecialchars($notification['farmer_name']); ?>"
                                                 data-product-name="<?php echo htmlspecialchars($notification['product_name']); ?>"
                                                 data-request-id="<?php echo $notification['request_id']; ?>">
@@ -1116,7 +1217,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                                     <div class="mt-3">
                                         <?php if($request['assigned_farmer_id']): ?>
                                         <button class="btn btn-sm btn-outline-success message-assigned-farmer-btn"
-                                                data-farmer-id="<?php echo $request['assigned_farmer_id']; ?>"
+                                                data-farmer-id="<?php echo $request['farmer_id']; ?>"
                                                 data-farmer-name="<?php echo htmlspecialchars($request['farmer_name'] ?? 'Farmer'); ?>"
                                                 data-product-name="<?php echo htmlspecialchars($request['product_name']); ?>"
                                                 data-request-id="<?php echo $request['request_id']; ?>">
@@ -1285,7 +1386,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
         </div>
     </div>
 
-    <!-- Message Farmer Modal -->
+    <!-- ========== FIXED: Message Farmer Modal with proper form action ========== -->
     <div class="modal fade" id="messageFarmerModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -1293,7 +1394,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                     <h5 class="modal-title"><i class="fas fa-user-tie me-2"></i>Message Farmer</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
-                <form method="POST" action="">
+                <form method="POST" action="messages.php<?php echo isset($_GET['tab']) ? '?tab=' . $_GET['tab'] : ''; ?>">
                     <div class="modal-body">
                         <input type="hidden" name="receiver_role" value="farmer">
                         <input type="hidden" name="receiver_id" id="message_farmer_id">
@@ -1317,7 +1418,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="send_message" class="btn btn-spice">Send Message</button>
+                        <button type="submit" name="send_message" class="btn btn-spice">Send Message to Farmer</button>
                     </div>
                 </form>
             </div>
@@ -1343,7 +1444,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
         }
 
         // Handle recipient selection
-        document.querySelector('select[name="receiver_role"]').addEventListener('change', function() {
+        document.querySelector('select[name="receiver_role"]')?.addEventListener('change', function() {
             const selectedOption = this.options[this.selectedIndex];
             const adminId = selectedOption.getAttribute('data-admin-id');
             
@@ -1354,7 +1455,7 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
             }
         });
 
-        // Handle message farmer button clicks
+        // ========== FIXED: Handle message farmer button clicks ==========
         document.addEventListener('click', function(e) {
             if (e.target.closest('.message-farmer-btn') || e.target.closest('.message-assigned-farmer-btn')) {
                 const button = e.target.closest('button');
@@ -1363,13 +1464,14 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                 const productName = button.getAttribute('data-product-name') || 'Unknown Product';
                 const requestId = button.getAttribute('data-request-id') || '';
                 
-                // Get modal elements
-                const modal = new bootstrap.Modal(document.getElementById('messageFarmerModal'));
+                // Set values in the modal
                 document.getElementById('message_farmer_id').value = farmerId;
                 document.getElementById('message_farmer_name').value = farmerName;
                 document.getElementById('message_product_name').value = productName;
                 document.getElementById('message_subject').value = "Regarding your request: " + productName;
                 
+                // Show the modal
+                const modal = new bootstrap.Modal(document.getElementById('messageFarmerModal'));
                 modal.show();
             }
         });
@@ -1397,6 +1499,11 @@ $active_tab = isset($_GET['tab']) ? $_GET['tab'] : 'messages';
                     window.history.replaceState({}, document.title, window.location.pathname + '?tab=' + urlParams.get('tab'));
                 }, 100);
             }
+            
+            // Auto-dismiss alerts after 5 seconds
+            setTimeout(function() {
+                $('.alert').fadeOut('slow');
+            }, 5000);
         });
     </script>
 </body>

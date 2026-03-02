@@ -15,6 +15,9 @@ $farmer_query->bind_param("i", $farmer_id);
 $farmer_query->execute();
 $farmer = $farmer_query->get_result()->fetch_assoc();
 
+// Debug: Check which farmer is logged in
+$farmer_name = $farmer['name'];
+
 // Get date filter parameters
 $start_date = isset($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-01');
 $end_date = isset($_GET['end_date']) ? $_GET['end_date'] : date('Y-m-t');
@@ -26,13 +29,15 @@ if ($start_date > $end_date) {
     $end_date = $temp;
 }
 
-// Get total sales statistics for this farmer
+// ===== FIXED QUERIES FOR FARMER SALES =====
+
+// Get total sales statistics for this farmer - FIXED QUERY
 $total_sales_query = $conn->prepare("
     SELECT 
         COALESCE(SUM(oi.total_price), 0) as total_sales,
         COUNT(DISTINCT o.order_id) as total_orders,
-        SUM(oi.quantity) as total_quantity,
-        AVG(oi.total_price) as avg_order_value
+        COALESCE(SUM(oi.quantity), 0) as total_quantity,
+        COALESCE(AVG(oi.total_price), 0) as avg_order_value
     FROM order_items oi 
     JOIN products p ON oi.product_id = p.product_id 
     JOIN orders o ON oi.order_id = o.order_id
@@ -43,13 +48,13 @@ $total_sales_query->bind_param("i", $farmer_id);
 $total_sales_query->execute();
 $total_stats = $total_sales_query->get_result()->fetch_assoc();
 
-// Get filtered sales statistics
+// Get filtered sales statistics - FIXED QUERY
 $filtered_sales_query = $conn->prepare("
     SELECT 
         COALESCE(SUM(oi.total_price), 0) as filtered_sales,
         COUNT(DISTINCT o.order_id) as filtered_orders,
-        SUM(oi.quantity) as filtered_quantity,
-        AVG(oi.total_price) as filtered_avg_value
+        COALESCE(SUM(oi.quantity), 0) as filtered_quantity,
+        COALESCE(AVG(oi.total_price), 0) as filtered_avg_value
     FROM order_items oi 
     JOIN products p ON oi.product_id = p.product_id 
     JOIN orders o ON oi.order_id = o.order_id
@@ -61,13 +66,13 @@ $filtered_sales_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $filtered_sales_query->execute();
 $filtered_stats = $filtered_sales_query->get_result()->fetch_assoc();
 
-// Get daily sales for chart (last 30 days)
+// Get daily sales for chart (last 30 days) - FIXED QUERY
 $daily_sales_query = $conn->prepare("
     SELECT 
         DATE(o.created_at) as sale_date,
         COALESCE(SUM(oi.total_price), 0) as daily_sales,
         COUNT(DISTINCT o.order_id) as daily_orders,
-        SUM(oi.quantity) as daily_quantity
+        COALESCE(SUM(oi.quantity), 0) as daily_quantity
     FROM order_items oi 
     JOIN products p ON oi.product_id = p.product_id 
     JOIN orders o ON oi.order_id = o.order_id
@@ -79,13 +84,13 @@ $daily_sales_query = $conn->prepare("
 ");
 $daily_sales_query->bind_param("i", $farmer_id);
 $daily_sales_query->execute();
-$daily_sales_data = $daily_sales_query->get_result();
+$daily_sales_result = $daily_sales_query->get_result();
 
 $daily_sales_labels = [];
 $daily_sales_values = [];
 $daily_orders_values = [];
 
-while ($row = $daily_sales_data->fetch_assoc()) {
+while ($row = $daily_sales_result->fetch_assoc()) {
     $daily_sales_labels[] = date('M j', strtotime($row['sale_date']));
     $daily_sales_values[] = (float)$row['daily_sales'];
     $daily_orders_values[] = (int)$row['daily_orders'];
@@ -101,7 +106,7 @@ if (empty($daily_sales_labels)) {
     }
 }
 
-// Get monthly sales for chart (last 12 months)
+// Get monthly sales for chart (last 12 months) - FIXED QUERY
 $monthly_sales_query = $conn->prepare("
     SELECT 
         DATE_FORMAT(o.created_at, '%Y-%m') as sale_month,
@@ -119,13 +124,13 @@ $monthly_sales_query = $conn->prepare("
 ");
 $monthly_sales_query->bind_param("i", $farmer_id);
 $monthly_sales_query->execute();
-$monthly_sales_data = $monthly_sales_query->get_result();
+$monthly_sales_result = $monthly_sales_query->get_result();
 
 $monthly_labels = [];
 $monthly_sales = [];
 $monthly_orders = [];
 
-while ($row = $monthly_sales_data->fetch_assoc()) {
+while ($row = $monthly_sales_result->fetch_assoc()) {
     $monthly_labels[] = $row['month_name'];
     $monthly_sales[] = (float)$row['monthly_sales'];
     $monthly_orders[] = (int)$row['monthly_orders'];
@@ -141,7 +146,7 @@ if (empty($monthly_labels)) {
     }
 }
 
-// Get top selling products
+// Get top selling products for this farmer - FIXED QUERY
 $top_products_query = $conn->prepare("
     SELECT 
         p.product_id,
@@ -156,16 +161,16 @@ $top_products_query = $conn->prepare("
     LEFT JOIN order_items oi ON p.product_id = oi.product_id 
     LEFT JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
-    AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped') OR o.status IS NULL)
+    AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing') OR o.status IS NULL)
     GROUP BY p.product_id
     ORDER BY total_revenue DESC, total_sold DESC
     LIMIT 10
 ");
 $top_products_query->bind_param("i", $farmer_id);
 $top_products_query->execute();
-$top_products = $top_products_query->get_result();
+$top_products_result = $top_products_query->get_result();
 
-// Get sales by category
+// Get sales by category for this farmer - FIXED QUERY
 $category_sales_query = $conn->prepare("
     SELECT 
         p.category,
@@ -176,15 +181,16 @@ $category_sales_query = $conn->prepare("
     LEFT JOIN order_items oi ON p.product_id = oi.product_id 
     LEFT JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
-    AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped') OR o.status IS NULL)
+    AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing') OR o.status IS NULL)
     GROUP BY p.category
+    HAVING category_sales > 0
     ORDER BY category_sales DESC
 ");
 $category_sales_query->bind_param("i", $farmer_id);
 $category_sales_query->execute();
-$category_sales = $category_sales_query->get_result();
+$category_sales_result = $category_sales_query->get_result();
 
-// Get recent sales transactions
+// Get recent sales transactions for this farmer - FIXED QUERY
 $recent_sales_query = $conn->prepare("
     SELECT 
         o.order_id,
@@ -201,15 +207,15 @@ $recent_sales_query = $conn->prepare("
     JOIN orders o ON oi.order_id = o.order_id
     JOIN users u ON o.customer_id = u.user_id
     WHERE p.farmer_id = ? 
-    AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped')
+    AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing')
     ORDER BY o.created_at DESC
     LIMIT 20
 ");
 $recent_sales_query->bind_param("i", $farmer_id);
 $recent_sales_query->execute();
-$recent_sales = $recent_sales_query->get_result();
+$recent_sales_result = $recent_sales_query->get_result();
 
-// Get best selling days of week
+// Get best selling days of week - FIXED QUERY
 $weekly_pattern_query = $conn->prepare("
     SELECT 
         DAYNAME(o.created_at) as day_name,
@@ -221,22 +227,22 @@ $weekly_pattern_query = $conn->prepare("
     JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
     AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped')
-    GROUP BY DAYOFWEEK(o.created_at)
+    GROUP BY DAYOFWEEK(o.created_at), DAYNAME(o.created_at)
     ORDER BY day_num
 ");
 $weekly_pattern_query->bind_param("i", $farmer_id);
 $weekly_pattern_query->execute();
-$weekly_pattern = $weekly_pattern_query->get_result();
+$weekly_pattern_result = $weekly_pattern_query->get_result();
 
 $weekly_labels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 $weekly_sales = array_fill(0, 7, 0);
 
-while ($row = $weekly_pattern->fetch_assoc()) {
+while ($row = $weekly_pattern_result->fetch_assoc()) {
     $day_index = ($row['day_num'] - 1) % 7;
     $weekly_sales[$day_index] = (float)$row['day_sales'];
 }
 
-// Get customer count
+// Get customer count - FIXED QUERY
 $customer_count_query = $conn->prepare("
     SELECT COUNT(DISTINCT o.customer_id) as total_customers
     FROM orders o
@@ -250,7 +256,7 @@ $customer_count_query->execute();
 $customer_count_result = $customer_count_query->get_result();
 $customer_count = $customer_count_result->fetch_assoc();
 
-// Get today's sales
+// Get today's sales - FIXED QUERY
 $today_sales_query = $conn->prepare("
     SELECT COALESCE(SUM(oi.total_price), 0) as today_sales
     FROM order_items oi 
@@ -265,7 +271,7 @@ $today_sales_query->execute();
 $today_sales_result = $today_sales_query->get_result();
 $today_sales = $today_sales_result->fetch_assoc();
 
-// Get this month's sales
+// Get this month's sales - FIXED QUERY
 $month_sales_query = $conn->prepare("
     SELECT COALESCE(SUM(oi.total_price), 0) as month_sales
     FROM order_items oi 
@@ -281,7 +287,7 @@ $month_sales_query->execute();
 $month_sales_result = $month_sales_query->get_result();
 $month_sales = $month_sales_result->fetch_assoc();
 
-// Get growth percentage (this month vs last month)
+// Get growth percentage (this month vs last month) - FIXED QUERY
 $growth_query = $conn->prepare("
     SELECT 
         SUM(CASE 
@@ -314,7 +320,7 @@ if ($last_month_sales > 0) {
     $growth_percentage = $current_month_sales > 0 ? 100 : 0;
 }
 
-// Get product count
+// Get product count for this farmer
 $product_count_query = $conn->prepare("
     SELECT COUNT(*) as total_products FROM products WHERE farmer_id = ? AND status = 'Approved'
 ");
@@ -323,7 +329,7 @@ $product_count_query->execute();
 $product_count_result = $product_count_query->get_result();
 $product_count = $product_count_result->fetch_assoc();
 
-// Get average product rating
+// Get average product rating for this farmer
 $avg_rating_query = $conn->prepare("
     SELECT COALESCE(AVG(r.rating), 0) as avg_rating
     FROM reviews r
@@ -335,7 +341,7 @@ $avg_rating_query->execute();
 $avg_rating_result = $avg_rating_query->get_result();
 $avg_rating = $avg_rating_result->fetch_assoc();
 
-// Get all time sales summary
+// Get all time sales summary for this farmer
 $all_time_sales_query = $conn->prepare("
     SELECT 
         COALESCE(SUM(oi.total_price), 0) as all_time_sales,
@@ -351,16 +357,55 @@ $all_time_sales_query->execute();
 $all_time_sales_result = $all_time_sales_query->get_result();
 $all_time_sales = $all_time_sales_result->fetch_assoc();
 
-// Debug data (remove in production)
-// echo "<pre>";
-// echo "Farmer ID: $farmer_id<br>";
-// echo "Total Stats: "; print_r($total_stats); echo "<br>";
-// echo "Filtered Stats: "; print_r($filtered_stats); echo "<br>";
-// echo "Today Sales: "; print_r($today_sales); echo "<br>";
-// echo "Month Sales: "; print_r($month_sales); echo "<br>";
-// echo "</pre>";
+// ===== DEBUG INFORMATION =====
+// Get actual sales data to verify
+$debug_sales_query = $conn->prepare("
+    SELECT 
+        o.order_id,
+        o.created_at,
+        o.status,
+        p.name as product_name,
+        p.farmer_id,
+        oi.quantity,
+        oi.price,
+        oi.total_price
+    FROM orders o
+    JOIN order_items oi ON o.order_id = oi.order_id
+    JOIN products p ON oi.product_id = p.product_id
+    WHERE p.farmer_id = ?
+    ORDER BY o.created_at DESC
+    LIMIT 10
+");
+$debug_sales_query->bind_param("i", $farmer_id);
+$debug_sales_query->execute();
+$debug_sales_result = $debug_sales_query->get_result();
 
-$conn->close();
+// Debug output
+$debug_data = [];
+while ($row = $debug_sales_result->fetch_assoc()) {
+    $debug_data[] = $row;
+}
+
+// Check which products belong to this farmer
+$debug_products_query = $conn->prepare("
+    SELECT product_id, name, category, stock, price
+    FROM products 
+    WHERE farmer_id = ?
+    AND status = 'Approved'
+    LIMIT 10
+");
+$debug_products_query->bind_param("i", $farmer_id);
+$debug_products_query->execute();
+$debug_products_result = $debug_products_query->get_result();
+
+$farmer_products = [];
+while ($row = $debug_products_result->fetch_assoc()) {
+    $farmer_products[] = $row;
+}
+
+// Get today's date for display
+$today = date('l, F j, Y');
+$current_time = date('h:i A');
 ?>
 
 <!DOCTYPE html>
@@ -570,11 +615,21 @@ $conn->close();
         .debug-info {
             background: #f8d7da;
             color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none; /* Hide by default, use Ctrl+D to show */
+            border-left: 4px solid #e74c3c;
+        }
+        
+        .data-test {
+            background: #d1ecf1;
+            color: #0c5460;
             padding: 10px;
             border-radius: 5px;
             margin-bottom: 10px;
             font-size: 12px;
-            display: none; /* Hide in production */
         }
     </style>
 </head>
@@ -617,9 +672,21 @@ $conn->close();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="earnings.php">
+                            <i class="fas fa-wallet me-2"></i>
+                            Earnings Monitor
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link active" href="my_sales.php">
                             <i class="fas fa-chart-line me-2"></i>
                             Sales Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="forecasting.php">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Sales Forecasting
                         </a>
                     </li>
                     <li class="nav-item">
@@ -639,17 +706,89 @@ $conn->close();
                 <div class="mt-auto p-3 text-center text-light opacity-75 small">
                     <i class="fas fa-seedling me-1"></i>
                     Farmer ID: F<?php echo str_pad($farmer_id, 4, '0', STR_PAD_LEFT); ?>
+                    <br>
+                    <small><?php echo htmlspecialchars($farmer_name); ?></small>
                 </div>
             </nav>
 
             <!-- Main Content -->
             <div class="col-md-10 p-4" style="background: #f8f9fa; min-height: 100vh;">
-                <!-- Debug Info (Remove in production) -->
+                <!-- Debug Info (Press Ctrl+D to show) -->
                 <div class="debug-info">
-                    <strong>Debug Info:</strong><br>
-                    Farmer ID: <?php echo $farmer_id; ?><br>
-                    Total Sales: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?><br>
-                    Filtered Sales: Rs. <?php echo number_format($filtered_stats['filtered_sales'] ?? 0, 2); ?>
+                    <h6><i class="fas fa-bug me-2"></i> Debug Information</h6>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Farmer Information:</strong><br>
+                            Farmer ID: <?php echo $farmer_id; ?><br>
+                            Name: <?php echo htmlspecialchars($farmer_name); ?><br>
+                            Email: <?php echo htmlspecialchars($farmer['email']); ?>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Sales Stats:</strong><br>
+                            Total Sales: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?><br>
+                            Filtered Sales: Rs. <?php echo number_format($filtered_stats['filtered_sales'] ?? 0, 2); ?><br>
+                            Total Orders: <?php echo $total_stats['total_orders'] ?? 0; ?>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Query Results:</strong><br>
+                            Top Products: <?php echo $top_products_result->num_rows; ?> found<br>
+                            Recent Sales: <?php echo $recent_sales_result->num_rows; ?> found<br>
+                            Category Sales: <?php echo $category_sales_result->num_rows; ?> found
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button class="btn btn-sm btn-secondary" onclick="toggleDataTest()">
+                            <i class="fas fa-eye me-1"></i> Show/Hide Test Data
+                        </button>
+                    </div>
+                    
+                    <div class="data-test mt-3" style="display: none;">
+                        <strong>Farmer's Products (Approved):</strong><br>
+                        <?php if(!empty($farmer_products)): ?>
+                            <div class="row">
+                                <?php foreach($farmer_products as $product): ?>
+                                <div class="col-md-3">
+                                    <?php echo htmlspecialchars($product['name']); ?> 
+                                    (Rs. <?php echo number_format($product['price'], 2); ?>)
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            No approved products found for this farmer
+                        <?php endif; ?>
+                        
+                        <hr>
+                        <strong>Recent Sales Data:</strong><br>
+                        <?php if(!empty($debug_data)): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Order ID</th>
+                                            <th>Date</th>
+                                            <th>Product</th>
+                                            <th>Qty</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach($debug_data as $sale): ?>
+                                        <tr>
+                                            <td>#<?php echo $sale['order_id']; ?></td>
+                                            <td><?php echo date('M d', strtotime($sale['created_at'])); ?></td>
+                                            <td><?php echo htmlspecialchars($sale['product_name']); ?></td>
+                                            <td><?php echo $sale['quantity']; ?></td>
+                                            <td>Rs. <?php echo number_format($sale['total_price'], 2); ?></td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            No sales data found for this farmer
+                        <?php endif; ?>
+                    </div>
                 </div>
 
                 <!-- Header -->
@@ -662,12 +801,16 @@ $conn->close();
                             </h2>
                             <p class="text-muted mb-0">
                                 <i class="fas fa-info-circle me-1"></i> 
-                                Track your sales performance, analyze trends, and optimize your farm business.
+                                Welcome, <strong><?php echo htmlspecialchars($farmer_name); ?></strong>! 
+                                Track your sales performance and analyze trends.
                             </p>
                         </div>
                         <div style="background: linear-gradient(135deg, var(--farmer-green), #219653); color: white; padding: 10px 20px; border-radius: 25px; font-weight: 500; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3);">
                             <i class="fas fa-calendar-alt me-1"></i> 
-                            <?php echo date('F j, Y'); ?>
+                            <?php echo $today; ?>
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-clock me-1"></i> 
+                            <?php echo $current_time; ?>
                         </div>
                     </div>
                 </div>
@@ -698,13 +841,13 @@ $conn->close();
                                     <i class="fas fa-redo me-1"></i> Reset
                                 </a>
                                 <button type="button" class="btn btn-outline-success" onclick="exportData()">
-                                    <i class="fas fa-download me-1"></i> Export
+                                    <i class="fas fa-download me-1"></i> Export Data
                                 </button>
                             </div>
                         </div>
                         <div class="col-md-2 text-end">
                             <span class="badge bg-success p-2">
-                                Filtered Period: 
+                                <i class="fas fa-calendar me-1"></i>
                                 <?php echo date('M d', strtotime($start_date)); ?> - 
                                 <?php echo date('M d, Y', strtotime($end_date)); ?>
                             </span>
@@ -743,7 +886,7 @@ $conn->close();
                                     <div class="stat-label">Average Order Value</div>
                                     <div class="small opacity-75 mt-2">
                                         <i class="fas fa-users me-1"></i> 
-                                        <?php echo $customer_count['total_customers'] ?? 0; ?> total customers
+                                        <?php echo $customer_count['total_customers'] ?? 0; ?> customers
                                         <br>
                                         <i class="fas fa-leaf me-1"></i> 
                                         <?php echo $product_count['total_products'] ?? 0; ?> products
@@ -819,10 +962,10 @@ $conn->close();
                                     Daily Sales Trend (Last 30 Days)
                                 </h5>
                                 <div class="btn-group btn-group-sm">
-                                    <button class="btn btn-outline-secondary active" onclick="showDailyChart()">
+                                    <button class="btn btn-outline-primary active" onclick="showDailyChart()">
                                         <i class="fas fa-rupee-sign me-1"></i> Revenue
                                     </button>
-                                    <button class="btn btn-outline-secondary" onclick="showOrdersChart()">
+                                    <button class="btn btn-outline-primary" onclick="showOrdersChart()">
                                         <i class="fas fa-shopping-cart me-1"></i> Orders
                                     </button>
                                 </div>
@@ -858,14 +1001,14 @@ $conn->close();
                                     Top Selling Products
                                 </h5>
                                 <span class="badge bg-primary">
-                                    <?php echo $top_products->num_rows; ?> Products
+                                    <?php echo $top_products_result->num_rows; ?> Products
                                 </span>
                             </div>
                             
-                            <?php if($top_products->num_rows > 0): 
+                            <?php if($top_products_result->num_rows > 0): 
                                 $rank = 1;
-                                $top_products->data_seek(0);
-                                while($product = $top_products->fetch_assoc()): 
+                                $top_products_result->data_seek(0);
+                                while($product = $top_products_result->fetch_assoc()): 
                                     $percentage = ($total_stats['total_sales'] ?? 0) > 0 ? 
                                         ($product['total_revenue'] / $total_stats['total_sales']) * 100 : 0;
                             ?>
@@ -911,8 +1054,11 @@ $conn->close();
                                 </div>
                                 <h5 class="text-muted mb-3">No sales data</h5>
                                 <p class="text-muted mb-4">
-                                    Your products haven't been sold yet.
+                                    Your products haven't been sold yet. Check back after your first sale!
                                 </p>
+                                <a href="manage_products.php" class="btn btn-outline-primary">
+                                    <i class="fas fa-leaf me-2"></i> View My Products
+                                </a>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -921,17 +1067,28 @@ $conn->close();
                     <!-- Sales by Category & Weekly Pattern -->
                     <div class="col-md-6">
                         <div class="row h-100">
+                            <!-- Category Chart -->
                             <div class="col-12 mb-4">
                                 <div class="analytics-card h-100">
                                     <h5 class="mb-3">
                                         <i class="fas fa-chart-pie me-2" style="color: var(--farmer-brown);"></i>
                                         Sales by Category
                                     </h5>
-                                    <div class="chart-container">
-                                        <canvas id="categoryChart"></canvas>
-                                    </div>
+                                    <?php if($category_sales_result->num_rows > 0): ?>
+                                        <div class="chart-container">
+                                            <canvas id="categoryChart"></canvas>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="empty-state" style="padding: 40px 20px;">
+                                            <div class="empty-state-icon">
+                                                <i class="fas fa-chart-pie"></i>
+                                            </div>
+                                            <p class="text-muted">No category data available</p>
+                                        </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
+                            <!-- Weekly Pattern -->
                             <div class="col-12">
                                 <div class="analytics-card h-100">
                                     <h5 class="mb-3">
@@ -957,11 +1114,12 @@ $conn->close();
                                     Recent Sales Transactions
                                 </h5>
                                 <span class="badge bg-info">
-                                    Showing <?php echo $recent_sales->num_rows; ?> transactions
+                                    <i class="fas fa-receipt me-1"></i>
+                                    <?php echo $recent_sales_result->num_rows; ?> transactions
                                 </span>
                             </div>
                             
-                            <?php if($recent_sales->num_rows > 0): ?>
+                            <?php if($recent_sales_result->num_rows > 0): ?>
                             <div class="table-responsive">
                                 <table class="table table-hover table-sm">
                                     <thead class="table-light">
@@ -978,13 +1136,13 @@ $conn->close();
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php $recent_sales->data_seek(0);
-                                        while($sale = $recent_sales->fetch_assoc()): ?>
+                                        <?php $recent_sales_result->data_seek(0);
+                                        while($sale = $recent_sales_result->fetch_assoc()): ?>
                                         <tr>
                                             <td>
-                                                <a href="#" class="text-decoration-none fw-bold">
+                                                <span class="fw-bold">
                                                     #<?php echo str_pad($sale['order_id'], 6, '0', STR_PAD_LEFT); ?>
-                                                </a>
+                                                </span>
                                             </td>
                                             <td>
                                                 <small>
@@ -1039,11 +1197,14 @@ $conn->close();
                                                     case 'Shipped':
                                                         $status_class = 'text-primary';
                                                         break;
-                                                    default:
+                                                    case 'Processing':
                                                         $status_class = 'text-warning';
+                                                        break;
+                                                    default:
+                                                        $status_class = 'text-secondary';
                                                 }
                                                 ?>
-                                                <span class="badge bg-success">
+                                                <span class="badge <?php echo $status_class == 'text-success' ? 'bg-success' : ($status_class == 'text-primary' ? 'bg-primary' : ($status_class == 'text-warning' ? 'bg-warning' : 'bg-secondary')); ?>">
                                                     <?php echo $sale['status']; ?>
                                                 </span>
                                             </td>
@@ -1126,8 +1287,8 @@ $conn->close();
                                 </div>
                                 <div class="col-md-4 d-flex align-items-center justify-content-center">
                                     <div class="text-center">
-                                        <div class="display-4 mb-2"><?php echo number_format($filtered_stats['filtered_orders'] ?? 0); ?></div>
-                                        <div class="mb-3">Completed Orders</div>
+                                        <div class="display-4 mb-2 text-white"><?php echo number_format($filtered_stats['filtered_orders'] ?? 0); ?></div>
+                                        <div class="mb-3 text-white">Completed Orders</div>
                                         <?php 
                                         $progress = 0;
                                         if (($filtered_stats['filtered_quantity'] ?? 0) > 0) {
@@ -1142,7 +1303,7 @@ $conn->close();
                                                  aria-valuemax="100">
                                             </div>
                                         </div>
-                                        <small class="mt-2 d-block">
+                                        <small class="mt-2 d-block text-white">
                                             <?php echo $filtered_stats['filtered_quantity'] ?? 0; ?> units sold
                                         </small>
                                     </div>
@@ -1165,7 +1326,10 @@ $conn->close();
                                 Period: <?php echo date('M d', strtotime($start_date)); ?> - <?php echo date('M d, Y', strtotime($end_date)); ?> • 
                                 <span class="mx-2">|</span> 
                                 <i class="fas fa-coins me-1"></i> 
-                                Total Revenue: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?>
+                                Total Revenue: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?> • 
+                                <span class="mx-2">|</span>
+                                <i class="fas fa-user me-1"></i>
+                                Farmer: <?php echo htmlspecialchars($farmer_name); ?>
                             </p>
                         </div>
                     </div>
@@ -1194,9 +1358,11 @@ $conn->close();
                         data: <?php echo json_encode($daily_sales_values); ?>,
                         borderColor: '#27ae60',
                         backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                        borderWidth: 2,
+                        borderWidth: 3,
                         fill: true,
-                        tension: 0.4
+                        tension: 0.4,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
                     }, {
                         label: 'Daily Orders',
                         data: <?php echo json_encode($daily_orders_values); ?>,
@@ -1205,12 +1371,17 @@ $conn->close();
                         borderWidth: 2,
                         fill: false,
                         tension: 0.4,
-                        hidden: true
+                        hidden: true,
+                        pointRadius: 2
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
@@ -1222,11 +1393,24 @@ $conn->close();
                                         return value;
                                     }
                                 }
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
                             }
                         }
                     },
                     plugins: {
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: '#27ae60',
+                            borderWidth: 1,
                             callbacks: {
                                 label: function(context) {
                                     if (chartMode === 'revenue') {
@@ -1235,6 +1419,11 @@ $conn->close();
                                         return 'Orders: ' + context.parsed.y;
                                     }
                                 }
+                            }
+                        },
+                        legend: {
+                            labels: {
+                                usePointStyle: true,
                             }
                         }
                     }
@@ -1250,16 +1439,10 @@ $conn->close();
                     datasets: [{
                         label: 'Monthly Revenue (Rs.)',
                         data: <?php echo json_encode($monthly_sales); ?>,
-                        backgroundColor: 'rgba(39, 174, 96, 0.7)',
+                        backgroundColor: 'rgba(39, 174, 96, 0.8)',
                         borderColor: '#27ae60',
-                        borderWidth: 1
-                    }, {
-                        label: 'Monthly Orders',
-                        data: <?php echo json_encode($monthly_orders); ?>,
-                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                        borderColor: '#3498db',
                         borderWidth: 1,
-                        hidden: true
+                        borderRadius: 4
                     }]
                 },
                 options: {
@@ -1272,12 +1455,27 @@ $conn->close();
                                 callback: function(value) {
                                     return 'Rs. ' + value.toLocaleString();
                                 }
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
                             }
                         }
                     },
                     plugins: {
-                        legend: {
-                            position: 'top',
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Revenue: Rs. ' + context.parsed.y.toLocaleString();
+                                }
+                            }
                         }
                     }
                 }
@@ -1292,10 +1490,10 @@ $conn->close();
                 '#1abc9c', '#d35400', '#c0392b', '#16a085', '#8e44ad'
             ];
             
-            if ($category_sales->num_rows > 0) {
-                $category_sales->data_seek(0);
+            if ($category_sales_result->num_rows > 0) {
+                $category_sales_result->data_seek(0);
                 $color_index = 0;
-                while ($cat = $category_sales->fetch_assoc()) {
+                while ($cat = $category_sales_result->fetch_assoc()) {
                     $category_labels[] = $cat['category'];
                     $category_data[] = (float)$cat['category_sales'];
                     $color_index = ($color_index + 1) % count($category_colors);
@@ -1303,6 +1501,7 @@ $conn->close();
             }
             ?>
             
+            <?php if($category_sales_result->num_rows > 0): ?>
             // Category Chart
             const categoryCtx = document.getElementById('categoryChart').getContext('2d');
             categoryChart = new Chart(categoryCtx, {
@@ -1312,26 +1511,38 @@ $conn->close();
                     datasets: [{
                         data: <?php echo json_encode($category_data); ?>,
                         backgroundColor: <?php echo json_encode($category_colors); ?>.slice(0, <?php echo count($category_data); ?>),
-                        borderWidth: 1
+                        borderWidth: 1,
+                        borderColor: '#fff'
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    cutout: '60%',
                     plugins: {
                         legend: {
                             position: 'right',
+                            labels: {
+                                padding: 15,
+                                usePointStyle: true,
+                            }
                         },
                         tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
                             callbacks: {
                                 label: function(context) {
-                                    return context.label + ': Rs. ' + context.parsed.toLocaleString();
+                                    const total = <?php echo array_sum($category_data); ?>;
+                                    const percentage = Math.round((context.raw / total) * 100);
+                                    return context.label + ': Rs. ' + context.raw.toLocaleString() + ' (' + percentage + '%)';
                                 }
                             }
                         }
                     }
                 }
             });
+            <?php endif; ?>
             
             // Weekly Chart
             const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
@@ -1342,9 +1553,10 @@ $conn->close();
                     datasets: [{
                         label: 'Sales by Day (Rs.)',
                         data: <?php echo json_encode($weekly_sales); ?>,
-                        backgroundColor: 'rgba(155, 89, 182, 0.7)',
+                        backgroundColor: 'rgba(155, 89, 182, 0.8)',
                         borderColor: '#9b59b6',
-                        borderWidth: 1
+                        borderWidth: 1,
+                        borderRadius: 4
                     }]
                 },
                 options: {
@@ -1356,6 +1568,26 @@ $conn->close();
                             ticks: {
                                 callback: function(value) {
                                     return 'Rs. ' + value.toLocaleString();
+                                }
+                            },
+                            grid: {
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Sales: Rs. ' + context.parsed.y.toLocaleString();
                                 }
                             }
                         }
@@ -1397,24 +1629,58 @@ $conn->close();
         function exportData() {
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
+            const farmerName = "<?php echo htmlspecialchars($farmer_name); ?>";
             
-            // Create a simple CSV download
+            // Create CSV content
             let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Sales Report for " + startDate + " to " + endDate + "\n\n";
-            csvContent += "Metric,Value\n";
+            csvContent += "Sales Report for " + farmerName + "\n";
+            csvContent += "Period: " + startDate + " to " + endDate + "\n";
+            csvContent += "Generated on: " + new Date().toLocaleDateString() + "\n\n";
+            
+            // Main metrics
+            csvContent += "METRIC,VALUE\n";
             csvContent += "Filtered Sales Revenue,Rs. " + <?php echo $filtered_stats['filtered_sales'] ?? 0; ?> + "\n";
             csvContent += "Filtered Orders," + <?php echo $filtered_stats['filtered_orders'] ?? 0; ?> + "\n";
             csvContent += "Total Units Sold," + <?php echo $filtered_stats['filtered_quantity'] ?? 0; ?> + "\n";
-            csvContent += "Average Order Value,Rs. " + <?php echo $filtered_stats['filtered_avg_value'] ?? 0; ?> + "\n";
+            csvContent += "Average Order Value,Rs. " + (<?php echo $filtered_stats['filtered_avg_value'] ?? 0; ?>).toFixed(2) + "\n";
+            csvContent += "Total Customers," + <?php echo $customer_count['total_customers'] ?? 0; ?> + "\n";
+            csvContent += "Monthly Growth," + <?php echo $growth_percentage ?? 0; ?> + "%\n\n";
+            
+            // Top products
+            csvContent += "TOP SELLING PRODUCTS\n";
+            csvContent += "Rank,Product Name,Category,Units Sold,Total Revenue,Stock\n";
+            <?php
+            if($top_products_result->num_rows > 0) {
+                $top_products_result->data_seek(0);
+                $rank = 1;
+                while($product = $top_products_result->fetch_assoc()) {
+                    echo "csvContent += '" . $rank . ",\"" . addslashes($product['name']) . "\",\"" . $product['category'] . "\"," . $product['total_sold'] . ",Rs. " . number_format($product['total_revenue'], 2) . "," . $product['stock'] . "\\n';\n";
+                    $rank++;
+                }
+            }
+            ?>
             
             // Create download link
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "sales_report_<?php echo date('Y-m-d'); ?>.csv");
+            link.setAttribute("download", "sales_report_<?php echo date('Y-m-d'); ?>_<?php echo htmlspecialchars($farmer_name); ?>.csv");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            
+            // Show success message
+            alert('Sales report exported successfully!');
+        }
+        
+        // Toggle debug info
+        function toggleDebugInfo() {
+            $('.debug-info').toggle();
+        }
+        
+        // Toggle test data
+        function toggleDataTest() {
+            $('.data-test').toggle();
         }
         
         // Initialize on page load
@@ -1453,6 +1719,11 @@ $conn->close();
                     $('.debug-info').toggle();
                     e.preventDefault();
                 }
+            });
+            
+            // Add animation to stat cards
+            $('.stat-card').each(function(index) {
+                $(this).delay(index * 100).animate({opacity: 1}, 300);
             });
         });
     </script>

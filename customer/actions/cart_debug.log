@@ -70,3 +70,93 @@ Product: Licorice Powder, Base Price: 580, Multiplier: 0.1
 Unit Price: 58, Total Price: 58
 New cart item added successfully
 SUCCESS: Item added to cart with package size: 100g
+=== Add to Cart Debug ===
+Time: 2026-02-22 07:59:43
+User ID: 1, Role: customer
+POST Data - Product ID: 17, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Lemongrass, Base Price: 190, Multiplier: 1
+Unit Price: 190, Total Price: 190
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-02-24 18:10:49
+User ID: 1, Role: customer
+POST Data - Product ID: 10, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Fenugreek Seeds, Base Price: 340, Multiplier: 1
+Unit Price: 340, Total Price: 340
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-02-24 18:10:58
+User ID: 1, Role: customer
+POST Data - Product ID: 10, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Fenugreek Seeds, Base Price: 340, Multiplier: 1
+Unit Price: 340, Total Price: 340
+Cart item updated successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-02-24 18:11:23
+User ID: 1, Role: customer
+POST Data - Product ID: 10, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Fenugreek Seeds, Base Price: 340, Multiplier: 1
+Unit Price: 340, Total Price: 340
+Cart item updated successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-02-26 16:54:19
+User ID: 1, Role: customer
+POST Data - Product ID: 28, Quantity: 1, Package: 100g
+Database connected successfully
+Product: Goraka, Base Price: 420, Multiplier: 0.1
+Unit Price: 42, Total Price: 42
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 100g
+=== Add to Cart Debug ===
+Time: 2026-02-26 16:54:55
+User ID: 1, Role: customer
+POST Data - Product ID: 28, Quantity: 2, Package: 100g
+Database connected successfully
+Product: Goraka, Base Price: 420, Multiplier: 0.1
+Unit Price: 42, Total Price: 84
+Cart item updated successfully
+SUCCESS: Item added to cart with package size: 100g
+=== Add to Cart Debug ===
+Time: 2026-02-28 16:39:26
+User ID: 1, Role: customer
+POST Data - Product ID: 3, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Cloves, Base Price: 890, Multiplier: 1
+Unit Price: 890, Total Price: 890
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-02-28 16:40:30
+User ID: 1, Role: customer
+POST Data - Product ID: 21, Quantity: 1, Package: 25g
+Database connected successfully
+Product: Bay Leaves, Base Price: 280, Multiplier: 0.025
+Unit Price: 7, Total Price: 7
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 25g
+=== Add to Cart Debug ===
+Time: 2026-02-28 16:41:49
+User ID: 1, Role: customer
+POST Data - Product ID: 7, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Cumin Seeds, Base Price: 380, Multiplier: 1
+Unit Price: 380, Total Price: 380
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-01 15:44:42
+User ID: 1, Role: customer
+POST Data - Product ID: 10, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Fenugreek Seeds - උළුහාල් (Uluhal), Base Price: 340, Multiplier: 1
+Unit Price: 340, Total Price: 340
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg

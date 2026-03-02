@@ -544,6 +544,12 @@ $total_assigned_requests = $assigned_requests->num_rows;
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="earnings.php">
+                            <i class="fas fa-wallet me-2"></i>
+                            Earnings Monitor
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="my_sales.php">
                             <i class="fas fa-chart-line me-2"></i>
                             Sales Analytics

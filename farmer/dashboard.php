@@ -448,12 +448,24 @@ $current_time = date('h:i A');
         <?php endif; ?>
     </a>
 </li>
+<li class="nav-item">
+    <a class="nav-link" href="earnings.php">
+        <i class="fas fa-wallet me-2"></i>
+        Earnings Monitor
+    </a>
+</li>
                     <li class="nav-item">
                         <a class="nav-link" href="my_sales.php">
                             <i class="fas fa-chart-line me-2"></i>
                             Sales Analytics
                         </a>
                     </li>
+                    <li class="nav-item">
+    <a class="nav-link" href="forecasting.php">
+        <i class="fas fa-chart-line me-2"></i>
+        Sales Forecasting
+    </a>
+</li>
                     <li class="nav-item">
                         <a class="nav-link" href="profile.php">
                             <i class="fas fa-user me-2"></i>

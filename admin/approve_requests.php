@@ -32,7 +32,7 @@ if (!in_array($admin_role, $allowed_roles)) {
 }
 
 // Function to notify customer
-function notifyCustomer($conn, $request_id, $status, $farmer_name = '') {
+function notifyCustomer($conn, $request_id, $status, $farmer_name = '', $reject_reason = '') {
     // Get customer email and request details
     $stmt = $conn->prepare("
         SELECT u.email, u.name as customer_name, pr.product_name 
@@ -52,18 +52,20 @@ function notifyCustomer($conn, $request_id, $status, $farmer_name = '') {
         
         // Log notification
         $message = "Customer {$customer_name} notified about request status: {$status} for {$product_name}" . 
-                  ($farmer_name ? " (Assigned to: {$farmer_name})" : "");
+                  ($farmer_name ? " (Assigned to: {$farmer_name})" : "") .
+                  ($reject_reason ? " - Reason: {$reject_reason}" : "");
         
         $_SESSION['last_notification'] = [
             'customer' => $customer_name,
             'product' => $product_name,
             'status' => $status,
-            'farmer' => $farmer_name
+            'farmer' => $farmer_name,
+            'reason' => $reject_reason
         ];
     }
 }
 
-// Handle POST actions (for farmer assignment)
+// Handle POST actions (for farmer assignment and reject with reason)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] == 'assign') {
         $request_id = (int)$_POST['request_id'];
@@ -150,6 +152,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->close();
         exit();
     }
+    
+    // Handle reject with reason
+    if ($_POST['action'] == 'reject') {
+        $request_id = (int)$_POST['request_id'];
+        $csrf_token = $_POST['csrf_token'];
+        $reject_reason = trim($_POST['reject_reason']);
+        
+        // Validate CSRF token
+        if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) {
+            $_SESSION['message'] = "Security token invalid. Please try again.";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        // Validate reject reason
+        if (empty($reject_reason)) {
+            $_SESSION['message'] = "Please provide a reason for rejection.";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        // Check if request exists
+        $check_stmt = $conn->prepare("SELECT status, product_name FROM product_requests WHERE request_id = ?");
+        $check_stmt->bind_param("i", $request_id);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows === 0) {
+            $_SESSION['message'] = "Request not found";
+            $_SESSION['message_type'] = 'danger';
+            header("Location: manage_requests.php");
+            exit();
+        }
+        
+        $request_data = $check_result->fetch_assoc();
+        
+        // Update request status to Rejected with reason
+        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Rejected', admin_notes = ?, updated_at = NOW() WHERE request_id = ?");
+        $stmt->bind_param("si", $reject_reason, $request_id);
+        
+        if ($stmt->execute()) {
+            // Log the rejection
+            $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+            $admin_id = $_SESSION['admin_id'];
+            $old_status = $request_data['status'];
+            $new_status = 'Rejected';
+            $notes = "Rejected with reason: " . $reject_reason;
+            $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+            $log_stmt->execute();
+            $log_stmt->close();
+            
+            // Notify customer
+            notifyCustomer($conn, $request_id, 'Rejected', '', $reject_reason);
+            
+            $_SESSION['message'] = "Request rejected! Customer has been notified with your reason.";
+            $_SESSION['message_type'] = 'success';
+        } else {
+            $_SESSION['message'] = "Error rejecting request";
+            $_SESSION['message_type'] = 'danger';
+        }
+        
+        header("Location: manage_requests.php");
+        exit();
+    }
 }
 
 // Handle GET actions with CSRF protection
@@ -167,7 +235,7 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     }
     
     // Validate action
-    $allowed_actions = ['view', 'approve', 'reject', 'delete', 'review', 'complete', 'assign'];
+    $allowed_actions = ['view', 'approve', 'delete', 'review', 'complete'];
     if (!in_array($action, $allowed_actions)) {
         $_SESSION['message'] = "Invalid action specified";
         $_SESSION['message_type'] = 'danger';
@@ -224,6 +292,16 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
             $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', assigned_farmer_id = ?, updated_at = NOW() WHERE request_id = ?");
             $stmt->bind_param("ii", $assigned_farmer_id, $request_id);
             if ($stmt->execute()) {
+                // Log the assignment
+                $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+                $admin_id = $_SESSION['admin_id'];
+                $old_status = $current_status;
+                $new_status = 'Approved';
+                $notes = "Assigned to farmer: " . $farmer_name . " (ID: " . $assigned_farmer_id . ")";
+                $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+                $log_stmt->execute();
+                $log_stmt->close();
+                
                 // Notify customer
                 notifyCustomer($conn, $request_id, 'Approved', $farmer_name);
                 
@@ -238,6 +316,16 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
             $stmt = $conn->prepare("UPDATE product_requests SET status = 'Approved', updated_at = NOW() WHERE request_id = ?");
             $stmt->bind_param("i", $request_id);
             if ($stmt->execute()) {
+                // Log the approval
+                $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+                $admin_id = $_SESSION['admin_id'];
+                $old_status = $current_status;
+                $new_status = 'Approved';
+                $notes = "Approved without farmer assignment";
+                $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+                $log_stmt->execute();
+                $log_stmt->close();
+                
                 // Notify customer
                 notifyCustomer($conn, $request_id, 'Approved');
                 
@@ -249,24 +337,20 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
             }
         }
     }
-    elseif ($action == 'reject') {
-        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Rejected', updated_at = NOW() WHERE request_id = ?");
-        $stmt->bind_param("i", $request_id);
-        if ($stmt->execute()) {
-            // Notify customer
-            notifyCustomer($conn, $request_id, 'Rejected');
-            
-            $_SESSION['message'] = "Request rejected! Customer has been notified.";
-            $_SESSION['message_type'] = 'success';
-        } else {
-            $_SESSION['message'] = "Error rejecting request";
-            $_SESSION['message_type'] = 'danger';
-        }
-    }
     elseif ($action == 'complete') {
         $stmt = $conn->prepare("UPDATE product_requests SET status = 'Completed', updated_at = NOW() WHERE request_id = ?");
         $stmt->bind_param("i", $request_id);
         if ($stmt->execute()) {
+            // Log the completion
+            $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+            $admin_id = $_SESSION['admin_id'];
+            $old_status = $current_status;
+            $new_status = 'Completed';
+            $notes = "Marked as completed by admin";
+            $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+            $log_stmt->execute();
+            $log_stmt->close();
+            
             // Notify customer
             notifyCustomer($conn, $request_id, 'Completed');
             
@@ -278,8 +362,8 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
         }
     }
     elseif ($action == 'delete') {
-        // Check if admin has permission to delete
-        if (!in_array($admin_role, ['super_admin', 'admin'])) {
+        // Check if admin has permission to delete (only super_admin)
+        if ($admin_role !== 'super_admin') {
             $_SESSION['message'] = "You don't have permission to delete requests";
             $_SESSION['message_type'] = 'danger';
             header("Location: manage_requests.php");
@@ -306,7 +390,7 @@ $status_filter = isset($_GET['status']) ? $_GET['status'] : 'Pending';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 // Validate status filter
-$valid_statuses = ['Pending', 'Reviewed', 'Approved', 'Rejected', 'Completed'];
+$valid_statuses = ['Pending', 'Reviewed', 'Approved', 'Rejected', 'Completed', 'Accepted'];
 if (!in_array($status_filter, $valid_statuses)) {
     $status_filter = 'Pending';
 }
@@ -397,9 +481,10 @@ function getRequestCount($conn, $status) {
 $pending_count = getRequestCount($conn, 'Pending');
 $reviewed_count = getRequestCount($conn, 'Reviewed');
 $approved_count = getRequestCount($conn, 'Approved');
+$accepted_count = getRequestCount($conn, 'Accepted');
 $rejected_count = getRequestCount($conn, 'Rejected');
 $completed_count = getRequestCount($conn, 'Completed');
-$total_all = $pending_count + $reviewed_count + $approved_count + $rejected_count + $completed_count;
+$total_all = $pending_count + $reviewed_count + $approved_count + $accepted_count + $rejected_count + $completed_count;
 
 // Get all farmers for dropdown
 $farmers_query = $conn->prepare("SELECT user_id, name, email, farm_location FROM users WHERE role = 'farmer' AND status = 'active' ORDER BY name");
@@ -444,8 +529,9 @@ if (isset($_SESSION['last_notification'])) {
             --pending: #f39c12;
             --reviewed: #3498db;
             --approved: #27ae60;
+            --accepted: #9b59b6;
             --rejected: #e74c3c;
-            --completed: #9b59b6;
+            --completed: #2ecc71;
         }
         
         .sidebar {
@@ -512,6 +598,7 @@ if (isset($_SESSION['last_notification'])) {
         .request-card.Pending { border-left: 4px solid var(--pending); }
         .request-card.Reviewed { border-left: 4px solid var(--reviewed); }
         .request-card.Approved { border-left: 4px solid var(--approved); }
+        .request-card.Accepted { border-left: 4px solid var(--accepted); }
         .request-card.Rejected { border-left: 4px solid var(--rejected); }
         .request-card.Completed { border-left: 4px solid var(--completed); }
         
@@ -525,8 +612,9 @@ if (isset($_SESSION['last_notification'])) {
         .badge-Pending { background: rgba(243, 156, 18, 0.15); color: var(--pending); }
         .badge-Reviewed { background: rgba(52, 152, 219, 0.15); color: var(--reviewed); }
         .badge-Approved { background: rgba(39, 174, 96, 0.15); color: var(--approved); }
+        .badge-Accepted { background: rgba(155, 89, 182, 0.15); color: var(--accepted); }
         .badge-Rejected { background: rgba(231, 76, 60, 0.15); color: var(--rejected); }
-        .badge-Completed { background: rgba(155, 89, 182, 0.15); color: var(--completed); }
+        .badge-Completed { background: rgba(46, 204, 113, 0.15); color: var(--completed); }
         
         .stat-card {
             border-radius: 12px;
@@ -554,12 +642,16 @@ if (isset($_SESSION['last_notification'])) {
             background: linear-gradient(135deg, var(--approved), #219653);
         }
         
+        .stat-card.accepted {
+            background: linear-gradient(135deg, var(--accepted), #8e44ad);
+        }
+        
         .stat-card.rejected {
             background: linear-gradient(135deg, var(--rejected), #c0392b);
         }
         
         .stat-card.completed {
-            background: linear-gradient(135deg, var(--completed), #8e44ad);
+            background: linear-gradient(135deg, var(--completed), #27ae60);
         }
         
         .stat-card.active {
@@ -677,6 +769,203 @@ if (isset($_SESSION['last_notification'])) {
             margin-top: 5px;
             border-left: 3px solid var(--spice-green);
         }
+        
+        /* Farmer Update Styles */
+        .farmer-update-badge {
+            background: rgba(52, 152, 219, 0.1);
+            border: 1px solid rgba(52, 152, 219, 0.3);
+            color: #2980b9;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        
+        .farmer-update-box {
+            background: #f0f9ff;
+            border-left: 3px solid var(--spice-blue);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .farmer-update-box .update-header {
+            color: var(--spice-blue);
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .farmer-update-box .update-content {
+            color: #2c3e50;
+            white-space: pre-wrap;
+        }
+        
+        .farmer-update-box .update-time {
+            font-size: 0.7rem;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+        
+        /* Confirmation Modal Styles */
+        .confirm-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .confirm-modal .modal-header {
+            background: linear-gradient(135deg, var(--spice-red), #d35400);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+            padding: 20px;
+        }
+        
+        .confirm-modal .modal-header.warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }
+        
+        .confirm-modal .modal-header.danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+        
+        .confirm-modal .modal-header.success {
+            background: linear-gradient(135deg, #27ae60, #219653);
+        }
+        
+        .confirm-modal .modal-header.info {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+        
+        .confirm-modal .modal-body {
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .confirm-modal .modal-body i {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+        
+        .confirm-modal .modal-body i.warning-icon {
+            color: #f39c12;
+        }
+        
+        .confirm-modal .modal-body i.danger-icon {
+            color: #e74c3c;
+        }
+        
+        .confirm-modal .modal-body i.success-icon {
+            color: #27ae60;
+        }
+        
+        .confirm-modal .modal-body h5 {
+            color: var(--spice-dark);
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .confirm-modal .modal-body p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .confirm-modal .modal-footer {
+            border-top: 1px solid #e9ecef;
+            padding: 15px 25px;
+            justify-content: center;
+        }
+        
+        .confirm-modal .btn {
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+            min-width: 120px;
+        }
+        
+        .confirm-modal .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .confirm-modal .btn-cancel {
+            background: #e9ecef;
+            color: #7f8c8d;
+        }
+        
+        .confirm-modal .btn-cancel:hover {
+            background: #dee2e6;
+        }
+        
+        .confirm-modal .btn-confirm {
+            background: var(--spice-green);
+            color: white;
+        }
+        
+        .confirm-modal .btn-confirm:hover {
+            background: #219653;
+        }
+        
+        .confirm-modal .btn-confirm.warning {
+            background: #f39c12;
+        }
+        
+        .confirm-modal .btn-confirm.warning:hover {
+            background: #e67e22;
+        }
+        
+        .confirm-modal .btn-confirm.danger {
+            background: #e74c3c;
+        }
+        
+        .confirm-modal .btn-confirm.danger:hover {
+            background: #c0392b;
+        }
+        
+        .confirm-modal .btn-confirm.info {
+            background: #3498db;
+        }
+        
+        .confirm-modal .btn-confirm.info:hover {
+            background: #2980b9;
+        }
+        
+        .reject-reason-textarea {
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 12px;
+            width: 100%;
+            margin-top: 15px;
+            resize: vertical;
+        }
+        
+        .reject-reason-textarea:focus {
+            border-color: var(--spice-red);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(184, 92, 56, 0.1);
+        }
+        
+        .reject-reason-box {
+            background: #fee9e7;
+            border-left: 3px solid var(--rejected);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.85rem;
+        }
+        
+        .reject-reason-box .reason-header {
+            color: var(--rejected);
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        
+        .reject-reason-box .reason-content {
+            color: #2c3e50;
+        }
     </style>
 </head>
 <body>
@@ -743,25 +1032,25 @@ if (isset($_SESSION['last_notification'])) {
                     <?php if(!empty($last_notification['farmer'])): ?>
                         (Assigned to: <?php echo htmlspecialchars($last_notification['farmer']); ?>)
                     <?php endif; ?>
+                    <?php if(!empty($last_notification['reason'])): ?>
+                        <br><strong>Reason:</strong> <?php echo htmlspecialchars($last_notification['reason']); ?>
+                    <?php endif; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 <?php endif; ?>
 
                 <!-- Status Stats -->
                 <div class="row mb-4">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <a href="manage_requests.php?status=Pending" class="text-decoration-none">
                             <div class="stat-card pending <?php echo $status_filter == 'Pending' ? 'active' : ''; ?>">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
                                         <div class="stat-value"><?php echo number_format($pending_count); ?></div>
-                                        <div class="stat-label">Pending Requests</div>
-                                        <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-clock me-1"></i> Awaiting review
-                                        </div>
+                                        <div class="stat-label">Pending</div>
                                     </div>
                                     <div class="display-6 opacity-50">
-                                        <i class="fas fa-hourglass-half"></i>
+                                        <i class="fas fa-clock"></i>
                                     </div>
                                 </div>
                             </div>
@@ -775,9 +1064,6 @@ if (isset($_SESSION['last_notification'])) {
                                     <div>
                                         <div class="stat-value"><?php echo number_format($reviewed_count); ?></div>
                                         <div class="stat-label">Reviewed</div>
-                                        <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-eye me-1"></i> Under consideration
-                                        </div>
                                     </div>
                                     <div class="display-6 opacity-50">
                                         <i class="fas fa-eye"></i>
@@ -794,12 +1080,25 @@ if (isset($_SESSION['last_notification'])) {
                                     <div>
                                         <div class="stat-value"><?php echo number_format($approved_count); ?></div>
                                         <div class="stat-label">Approved</div>
-                                        <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-check me-1"></i> Assigned to farmers
-                                        </div>
                                     </div>
                                     <div class="display-6 opacity-50">
                                         <i class="fas fa-check"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-2">
+                        <a href="manage_requests.php?status=Accepted" class="text-decoration-none">
+                            <div class="stat-card accepted <?php echo $status_filter == 'Accepted' ? 'active' : ''; ?>">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="stat-value"><?php echo number_format($accepted_count); ?></div>
+                                        <div class="stat-label">Accepted</div>
+                                    </div>
+                                    <div class="display-6 opacity-50">
+                                        <i class="fas fa-handshake"></i>
                                     </div>
                                 </div>
                             </div>
@@ -813,9 +1112,6 @@ if (isset($_SESSION['last_notification'])) {
                                     <div>
                                         <div class="stat-value"><?php echo number_format($rejected_count); ?></div>
                                         <div class="stat-label">Rejected</div>
-                                        <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-times me-1"></i> Request declined
-                                        </div>
                                     </div>
                                     <div class="display-6 opacity-50">
                                         <i class="fas fa-times"></i>
@@ -825,16 +1121,13 @@ if (isset($_SESSION['last_notification'])) {
                         </a>
                     </div>
                     
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <a href="manage_requests.php?status=Completed" class="text-decoration-none">
                             <div class="stat-card completed <?php echo $status_filter == 'Completed' ? 'active' : ''; ?>">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
                                         <div class="stat-value"><?php echo number_format($completed_count); ?></div>
                                         <div class="stat-label">Completed</div>
-                                        <div class="small opacity-75 mt-2">
-                                            <i class="fas fa-check-double me-1"></i> Request fulfilled
-                                        </div>
                                     </div>
                                     <div class="display-6 opacity-50">
                                         <i class="fas fa-check-double"></i>
@@ -871,6 +1164,7 @@ if (isset($_SESSION['last_notification'])) {
                                         <option value="Pending" <?php echo $status_filter == 'Pending' ? 'selected' : ''; ?>>Pending</option>
                                         <option value="Reviewed" <?php echo $status_filter == 'Reviewed' ? 'selected' : ''; ?>>Reviewed</option>
                                         <option value="Approved" <?php echo $status_filter == 'Approved' ? 'selected' : ''; ?>>Approved</option>
+                                        <option value="Accepted" <?php echo $status_filter == 'Accepted' ? 'selected' : ''; ?>>Accepted</option>
                                         <option value="Rejected" <?php echo $status_filter == 'Rejected' ? 'selected' : ''; ?>>Rejected</option>
                                         <option value="Completed" <?php echo $status_filter == 'Completed' ? 'selected' : ''; ?>>Completed</option>
                                     </select>
@@ -907,18 +1201,22 @@ if (isset($_SESSION['last_notification'])) {
                                         <strong class="text-success"><?php echo $approved_count; ?></strong>
                                     </div>
                                     <div class="d-flex justify-content-between mb-2">
+                                        <span class="text-muted">Accepted:</span>
+                                        <strong style="color: var(--accepted);"><?php echo $accepted_count; ?></strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-2">
                                         <span class="text-muted">Rejected:</span>
                                         <strong class="text-danger"><?php echo $rejected_count; ?></strong>
                                     </div>
                                     <div class="d-flex justify-content-between">
                                         <span class="text-muted">Completed:</span>
-                                        <strong style="color: var(--spice-purple);"><?php echo $completed_count; ?></strong>
+                                        <strong style="color: var(--completed);"><?php echo $completed_count; ?></strong>
                                     </div>
                                 </div>
                                 <hr class="my-3">
                                 <div class="small text-muted">
                                     <i class="fas fa-info-circle me-1"></i>
-                                    Approved requests are assigned to farmers for fulfillment.
+                                    "Accepted" means farmer has accepted the request.
                                 </div>
                             </div>
                         </div>
@@ -939,7 +1237,26 @@ if (isset($_SESSION['last_notification'])) {
                     </div>
                     
                     <?php if($requests_result->num_rows > 0): ?>
-                        <?php while($request = $requests_result->fetch_assoc()): ?>
+                        <?php while($request = $requests_result->fetch_assoc()): 
+                            // Parse admin_notes to extract latest farmer update
+                            $latest_farmer_update = '';
+                            if (!empty($request['admin_notes']) && strpos($request['admin_notes'], '[Farmer Update:') !== false) {
+                                $notes = $request['admin_notes'];
+                                // Get the last line that contains Farmer Update
+                                $lines = explode("\n", $notes);
+                                foreach ($lines as $line) {
+                                    if (strpos($line, '[Farmer Update:') !== false) {
+                                        $latest_farmer_update = $line;
+                                    }
+                                }
+                            }
+                            
+                            // Check if this is a rejection with reason
+                            $reject_reason = '';
+                            if ($request['status'] == 'Rejected' && !empty($request['admin_notes']) && strpos($request['admin_notes'], '[Farmer Update:') === false) {
+                                $reject_reason = $request['admin_notes'];
+                            }
+                        ?>
                         <div class="request-card <?php echo $request['status']; ?>" id="request-<?php echo $request['request_id']; ?>">
                             <div class="row align-items-center">
                                 <!-- Request Icon -->
@@ -973,6 +1290,11 @@ if (isset($_SESSION['last_notification'])) {
                                                 <i class="fas fa-user-tie me-1"></i>
                                                 <?php echo htmlspecialchars($request['farmer_name']); ?>
                                             </span>
+                                            <?php if($request['status'] == 'Accepted'): ?>
+                                            <span class="farmer-update-badge">
+                                                <i class="fas fa-check-circle"></i> Accepted
+                                            </span>
+                                            <?php endif; ?>
                                         </div>
                                         <?php endif; ?>
                                     </div>
@@ -1003,6 +1325,34 @@ if (isset($_SESSION['last_notification'])) {
                                                 <?php if(strlen($request['description']) > 80): ?>...<?php endif; ?>
                                             </div>
                                         <?php endif; ?>
+                                        
+                                        <!-- Show Farmer Update if exists -->
+                                        <?php if(!empty($latest_farmer_update)): ?>
+                                        <div class="farmer-update-box mt-2">
+                                            <div class="update-header">
+                                                <i class="fas fa-user-edit me-1"></i> Latest Farmer Update
+                                            </div>
+                                            <div class="update-content">
+                                                <?php echo htmlspecialchars($latest_farmer_update); ?>
+                                            </div>
+                                            <div class="update-time">
+                                                <i class="far fa-clock me-1"></i> Latest update
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
+                                        
+                                        <!-- Show Reject Reason if exists -->
+                                        <?php if(!empty($reject_reason)): ?>
+                                        <div class="reject-reason-box mt-2">
+                                            <div class="reason-header">
+                                                <i class="fas fa-times-circle me-1"></i> Rejection Reason
+                                            </div>
+                                            <div class="reason-content">
+                                                <?php echo htmlspecialchars($reject_reason); ?>
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
+                                        
                                         <?php if(!empty($request['farmer_name'])): ?>
                                         <div class="farmer-info-box mt-2" id="farmerInfo-<?php echo $request['request_id']; ?>">
                                             <strong><i class="fas fa-user-tie me-1"></i> Assigned Farmer:</strong><br>
@@ -1024,23 +1374,31 @@ if (isset($_SESSION['last_notification'])) {
                                             <i class="fas fa-eye me-1"></i> Reviewed
                                         <?php elseif($request['status'] == 'Approved'): ?>
                                             <i class="fas fa-check me-1"></i> Approved
+                                        <?php elseif($request['status'] == 'Accepted'): ?>
+                                            <i class="fas fa-handshake me-1"></i> Accepted
                                         <?php elseif($request['status'] == 'Completed'): ?>
                                             <i class="fas fa-check-double me-1"></i> Completed
                                         <?php else: ?>
                                             <i class="fas fa-times-circle me-1"></i> Rejected
                                         <?php endif; ?>
                                     </span>
+                                    <?php if(!empty($latest_farmer_update)): ?>
+                                    <div class="mt-1">
+                                        <small class="text-primary">
+                                            <i class="fas fa-sync-alt fa-spin me-1"></i> Farmer updated
+                                        </small>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <!-- Actions -->
                                 <div class="col-md-3">
                                     <div class="action-buttons d-flex justify-content-end" id="actions-<?php echo $request['request_id']; ?>">
                                         <?php if($request['status'] == 'Pending'): ?>
-                                            <a href="manage_requests.php?action=review&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-info btn-sm me-1 btn-review"
-                                               onclick="return confirmAction('review', <?php echo $request['request_id']; ?>, 'Mark this request as reviewed?')">
+                                            <button type="button" class="btn btn-info btn-sm me-1 btn-review" 
+                                                    onclick="showConfirmModal('review', <?php echo $request['request_id']; ?>, 'Mark this request as reviewed?')">
                                                 <i class="fas fa-eye"></i> Review
-                                            </a>
+                                            </button>
                                             
                                             <!-- Assign & Approve button -->
                                             <button class="btn btn-success btn-sm me-1 btn-assign-farmer" 
@@ -1050,17 +1408,16 @@ if (isset($_SESSION['last_notification'])) {
                                             </button>
                                             
                                             <!-- Direct approve without assignment -->
-                                            <a href="manage_requests.php?action=approve&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-outline-success btn-sm me-1 btn-approve"
-                                               onclick="return confirmAction('approve', <?php echo $request['request_id']; ?>, 'Approve without assigning to a farmer?\n\nCustomer will be notified immediately.\nFarmer will need to be assigned later.')">
+                                            <button type="button" class="btn btn-outline-success btn-sm me-1 btn-approve" 
+                                                    onclick="showConfirmModal('approve', <?php echo $request['request_id']; ?>, 'Approve this request without assigning to a farmer? Customer will be notified.', 'warning')">
                                                 <i class="fas fa-check-circle"></i> Direct Approve
-                                            </a>
+                                            </button>
                                             
-                                            <a href="manage_requests.php?action=reject&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-danger btn-sm btn-reject"
-                                               onclick="return confirmAction('reject', <?php echo $request['request_id']; ?>, 'Reject this product request? Customer will be notified.')">
+                                            <!-- Reject button with reason modal -->
+                                            <button type="button" class="btn btn-danger btn-sm btn-reject" 
+                                                    onclick="showRejectModal(<?php echo $request['request_id']; ?>)">
                                                 <i class="fas fa-times"></i> Reject
-                                            </a>
+                                            </button>
                                             
                                         <?php elseif($request['status'] == 'Reviewed'): ?>
                                             <!-- Assign & Approve button -->
@@ -1071,27 +1428,31 @@ if (isset($_SESSION['last_notification'])) {
                                             </button>
                                             
                                             <!-- Direct approve without assignment -->
-                                            <a href="manage_requests.php?action=approve&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-outline-success btn-sm me-1 btn-approve"
-                                               onclick="return confirmAction('approve', <?php echo $request['request_id']; ?>, 'Approve without assigning to a farmer?\n\nCustomer will be notified immediately.\nFarmer will need to be assigned later.')">
+                                            <button type="button" class="btn btn-outline-success btn-sm me-1 btn-approve" 
+                                                    onclick="showConfirmModal('approve', <?php echo $request['request_id']; ?>, 'Approve this request without assigning to a farmer? Customer will be notified.', 'warning')">
                                                 <i class="fas fa-check-circle"></i> Direct Approve
-                                            </a>
+                                            </button>
                                             
-                                            <a href="manage_requests.php?action=reject&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-danger btn-sm btn-reject"
-                                               onclick="return confirmAction('reject', <?php echo $request['request_id']; ?>, 'Reject this product request? Customer will be notified.')">
+                                            <!-- Reject button with reason modal -->
+                                            <button type="button" class="btn btn-danger btn-sm btn-reject" 
+                                                    onclick="showRejectModal(<?php echo $request['request_id']; ?>)">
                                                 <i class="fas fa-times"></i> Reject
-                                            </a>
+                                            </button>
                                             
-                                        <?php elseif($request['status'] == 'Approved'): ?>
-                                            <a href="manage_requests.php?action=complete&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-secondary btn-sm me-1 btn-complete"
-                                               onclick="return confirmAction('complete', <?php echo $request['request_id']; ?>, 'Mark this request as completed? Customer will be notified.')">
+                                        <?php elseif($request['status'] == 'Approved' || $request['status'] == 'Accepted'): ?>
+                                            <?php if($request['status'] == 'Accepted'): ?>
+                                            <span class="badge bg-success me-1 p-2">
+                                                <i class="fas fa-check-circle"></i> Farmer Accepted
+                                            </span>
+                                            <?php endif; ?>
+                                            
+                                            <button type="button" class="btn btn-secondary btn-sm me-1 btn-complete" 
+                                                    onclick="showConfirmModal('complete', <?php echo $request['request_id']; ?>, 'Mark this request as completed? Customer will be notified.', 'success')">
                                                 <i class="fas fa-check-double"></i> Complete
-                                            </a>
+                                            </button>
                                             
                                             <!-- Reassign button if farmer hasn't accepted yet -->
-                                            <?php if(empty($request['farmer_name'])): ?>
+                                            <?php if(empty($request['farmer_name']) && $request['status'] == 'Approved'): ?>
                                                 <button class="btn btn-warning btn-sm me-1 btn-assign-farmer" 
                                                         data-request-id="<?php echo $request['request_id']; ?>"
                                                         data-product-name="<?php echo htmlspecialchars($request['product_name']); ?>">
@@ -1101,12 +1462,11 @@ if (isset($_SESSION['last_notification'])) {
                                             
                                         <?php endif; ?>
                                         
-                                        <?php if(in_array($admin_role, ['super_admin', 'admin'])): ?>
-                                            <a href="manage_requests.php?action=delete&id=<?php echo $request['request_id']; ?>&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" 
-                                               class="btn btn-outline-danger btn-sm btn-delete"
-                                               onclick="return confirmAction('delete', <?php echo $request['request_id']; ?>, 'Delete this request permanently? This cannot be undone.')">
-                                                <i class="fas fa-trash"></i> Delete
-                                            </a>
+                                        <?php if($admin_role === 'super_admin'): ?>
+                                            <button type="button" class="btn btn-outline-danger btn-sm btn-delete" 
+                                                    onclick="showConfirmModal('delete', <?php echo $request['request_id']; ?>, 'Delete this request permanently? This cannot be undone.', 'danger')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
                                         <?php endif; ?>
                                     </div>
                                     
@@ -1239,9 +1599,67 @@ if (isset($_SESSION['last_notification'])) {
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div class="modal fade confirm-modal" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" id="confirmModalHeader">
+                    <h5 class="modal-title" id="confirmModalTitle">
+                        <i class="fas fa-question-circle me-2"></i> Confirm Action
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <i class="" id="confirmModalIcon"></i>
+                    <h5 id="confirmModalMessage"></h5>
+                    <p id="confirmModalDetail"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-confirm" id="confirmActionBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reject Reason Modal -->
+    <div class="modal fade confirm-modal" id="rejectModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header danger">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i> Reject Request
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" action="manage_requests.php" id="rejectForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="reject">
+                        <input type="hidden" name="request_id" id="rejectRequestId">
+                        <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
+                        
+                        <i class="fas fa-times-circle danger-icon"></i>
+                        <h5>Please provide a reason for rejection</h5>
+                        <p>This reason will be sent to the customer</p>
+                        
+                        <textarea name="reject_reason" class="reject-reason-textarea" rows="4" placeholder="Enter rejection reason..." required></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-confirm danger">Submit Rejection</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Store current action data
+        var currentAction = '';
+        var currentRequestId = 0;
+        
         // Auto-dismiss alerts after 5 seconds
         $(document).ready(function() {
             setTimeout(function() {
@@ -1262,10 +1680,6 @@ if (isset($_SESSION['last_notification'])) {
                 var farmerSelect = $('#farmerSelect').val();
                 if (!farmerSelect) {
                     alert('Please select a farmer to assign this request to.');
-                    return false;
-                }
-                
-                if (!confirm('Assign this request to the selected farmer?\n\nBoth customer and farmer will be notified immediately.')) {
                     return false;
                 }
                 
@@ -1313,18 +1727,69 @@ if (isset($_SESSION['last_notification'])) {
             });
         });
         
-        // Function to handle regular button actions
-        function confirmAction(action, requestId, message) {
-            if (confirm(message)) {
-                // For assign action, it's handled by modal
-                if (action === 'assign') {
-                    return true;
-                }
-                
-                // For other actions, proceed with normal navigation
-                return true;
+        // Show confirmation modal
+        function showConfirmModal(action, requestId, message, type = 'warning') {
+            currentAction = action;
+            currentRequestId = requestId;
+            
+            var modal = $('#confirmModal');
+            var header = $('#confirmModalHeader');
+            var icon = $('#confirmModalIcon');
+            var title = $('#confirmModalTitle');
+            var msg = $('#confirmModalMessage');
+            var detail = $('#confirmModalDetail');
+            var confirmBtn = $('#confirmActionBtn');
+            
+            // Set icon and colors based on type
+            if (type === 'danger') {
+                header.removeClass().addClass('modal-header danger');
+                icon.removeClass().addClass('fas fa-exclamation-triangle danger-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm danger');
+            } else if (type === 'success') {
+                header.removeClass().addClass('modal-header success');
+                icon.removeClass().addClass('fas fa-check-circle success-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm');
+            } else if (type === 'info') {
+                header.removeClass().addClass('modal-header info');
+                icon.removeClass().addClass('fas fa-info-circle');
+                confirmBtn.removeClass().addClass('btn btn-confirm info');
+            } else {
+                header.removeClass().addClass('modal-header warning');
+                icon.removeClass().addClass('fas fa-exclamation-triangle warning-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm warning');
             }
-            return false;
+            
+            title.html('<i class="fas fa-question-circle me-2"></i> Confirm ' + action.charAt(0).toUpperCase() + action.slice(1));
+            msg.html(message);
+            
+            if (action === 'delete') {
+                detail.html('This action cannot be undone.');
+            } else {
+                detail.html('');
+            }
+            
+            // Set confirm button action
+            confirmBtn.off('click').on('click', function() {
+                executeAction(action, requestId);
+            });
+            
+            modal.modal('show');
+        }
+        
+        // Show reject modal
+        function showRejectModal(requestId) {
+            $('#rejectRequestId').val(requestId);
+            $('#rejectModal').modal('show');
+        }
+        
+        // Execute action
+        function executeAction(action, requestId) {
+            var csrfToken = '<?php echo $_SESSION['csrf_token']; ?>';
+            var url = 'manage_requests.php?action=' + action + '&id=' + requestId + '&csrf_token=' + csrfToken;
+            
+            if (action === 'review' || action === 'approve' || action === 'complete' || action === 'delete') {
+                window.location.href = url;
+            }
         }
         
         function updateRequestCard(requestId, farmerName, farmerEmail) {
@@ -1356,18 +1821,16 @@ if (isset($_SESSION['last_notification'])) {
             
             // Update actions
             var newActions = '';
-            newActions += '<a href="manage_requests.php?action=complete&id=' + requestId + '&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" ';
-            newActions += 'class="btn btn-secondary btn-sm me-1 btn-complete" ';
-            newActions += 'onclick="return confirmAction(\'complete\', ' + requestId + ', \'Mark this request as completed? Customer will be notified.\')">';
+            newActions += '<button type="button" class="btn btn-secondary btn-sm me-1 btn-complete" ';
+            newActions += 'onclick="showConfirmModal(\'complete\', ' + requestId + ', \'Mark this request as completed? Customer will be notified.\', \'success\')">';
             newActions += '<i class="fas fa-check-double"></i> Complete';
-            newActions += '</a>';
+            newActions += '</button>';
             
-            <?php if(in_array($admin_role, ['super_admin', 'admin'])): ?>
-            newActions += '<a href="manage_requests.php?action=delete&id=' + requestId + '&csrf_token=<?php echo $_SESSION['csrf_token']; ?>" ';
-            newActions += 'class="btn btn-outline-danger btn-sm btn-delete" ';
-            newActions += 'onclick="return confirmAction(\'delete\', ' + requestId + ', \'Delete this request permanently? This cannot be undone.\')">';
-            newActions += '<i class="fas fa-trash"></i> Delete';
-            newActions += '</a>';
+            <?php if($admin_role === 'super_admin'): ?>
+            newActions += '<button type="button" class="btn btn-outline-danger btn-sm btn-delete" ';
+            newActions += 'onclick="showConfirmModal(\'delete\', ' + requestId + ', \'Delete this request permanently? This cannot be undone.\', \'danger\')">';
+            newActions += '<i class="fas fa-trash"></i>';
+            newActions += '</button>';
             <?php endif; ?>
             
             $('#actions-' + requestId).html(newActions);

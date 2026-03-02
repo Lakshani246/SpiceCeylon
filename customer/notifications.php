@@ -71,6 +71,20 @@ if (isset($_GET['mark_all_read'])) {
         }
     }
     
+    // ADDED: Also mark announcements as read
+    $unread_announce_query = "SELECT announcement_id FROM user_announcement_status WHERE user_id = ? AND is_read = 0";
+    $unread_announce_stmt = $conn->prepare($unread_announce_query);
+    $unread_announce_stmt->bind_param("i", $customer_id);
+    $unread_announce_stmt->execute();
+    $unread_announce_result = $unread_announce_stmt->get_result();
+    
+    while ($announcement = $unread_announce_result->fetch_assoc()) {
+        $update_announce = "UPDATE user_announcement_status SET is_read = 1, read_at = NOW() WHERE announcement_id = ? AND user_id = ?";
+        $update_announce_stmt = $conn->prepare($update_announce);
+        $update_announce_stmt->bind_param("ii", $announcement['announcement_id'], $customer_id);
+        $update_announce_stmt->execute();
+    }
+    
     header('Location: notifications.php');
     exit();
 }
@@ -101,6 +115,19 @@ if (isset($_GET['mark_read']) && is_numeric($_GET['mark_read'])) {
     exit();
 }
 
+// ADDED: Mark announcement as read
+if (isset($_GET['mark_announce_read']) && is_numeric($_GET['mark_announce_read'])) {
+    $announcement_id = $_GET['mark_announce_read'];
+    
+    $update_query = "UPDATE user_announcement_status SET is_read = 1, read_at = NOW() WHERE announcement_id = ? AND user_id = ?";
+    $update_stmt = $conn->prepare($update_query);
+    $update_stmt->bind_param("ii", $announcement_id, $customer_id);
+    $update_stmt->execute();
+    
+    header('Location: notifications.php');
+    exit();
+}
+
 // Clear all notifications
 if (isset($_GET['clear_all'])) {
     // Mark all as read first
@@ -116,42 +143,93 @@ if (isset($_GET['clear_all'])) {
     $clear_stmt->bind_param("ii", $customer_id, $customer_id);
     $clear_stmt->execute();
     
+    // ADDED: Clear announcements
+    $clear_announce = "UPDATE user_announcement_status SET is_read = 1, read_at = NOW() WHERE user_id = ? AND is_read = 0";
+    $clear_announce_stmt = $conn->prepare($clear_announce);
+    $clear_announce_stmt->bind_param("i", $customer_id);
+    $clear_announce_stmt->execute();
+    
     header('Location: notifications.php');
     exit();
 }
 
-// Get notifications for customer
-$notifications_query = "SELECT n.*, 
+// CHANGED: Get notifications and announcements for customer
+$notifications_query = "SELECT 
+                       'notification' as type,
+                       n.notification_id as id,
+                       n.title,
+                       n.message,
+                       n.created_at,
+                       n.expires_at,
+                       n.is_important,
+                       n.sender_id,
+                       n.sender_role,
                        s.name as sender_name,
                        uns.is_read,
                        uns.read_at,
                        CASE 
                            WHEN n.target_roles = 'all' THEN 'All Users'
                            WHEN n.target_roles = 'customers' THEN 'Customers Only'
-                           WHEN n.target_roles = 'farmers' THEN 'Farmers Only'
-                           WHEN n.target_roles = 'admins' THEN 'Admins Only'
-                           ELSE 'Specific User'
+                           ELSE 'System'
                        END as audience
                        FROM notifications n
                        LEFT JOIN users s ON n.sender_id = s.user_id AND n.sender_role = s.role
                        LEFT JOIN user_notification_status uns ON n.notification_id = uns.notification_id AND uns.user_id = ?
                        WHERE (n.target_roles = 'all' OR n.target_roles = 'customers')
                        AND (n.expires_at IS NULL OR n.expires_at > NOW())
-                       ORDER BY n.created_at DESC";
+                       
+                       UNION ALL
+                       
+                       SELECT 
+                       'announcement' as type,
+                       a.announcement_id as id,
+                       a.title,
+                       a.message,
+                       a.created_at,
+                       a.expires_at,
+                       a.is_important,
+                       a.created_by as sender_id,
+                       'admin' as sender_role,
+                       adm.username as sender_name,
+                       uas.is_read,
+                       uas.read_at,
+                       CASE 
+                           WHEN a.target_roles = 'all' THEN 'All Users'
+                           WHEN a.target_roles = 'customers' THEN 'Customers Only'
+                           WHEN a.target_roles = 'farmers' THEN 'Farmers Only'
+                           WHEN a.target_roles = 'admins' THEN 'Admins Only'
+                           ELSE a.target_roles
+                       END as audience
+                       FROM announcements a
+                       LEFT JOIN admins adm ON a.created_by = adm.admin_id
+                       LEFT JOIN user_announcement_status uas ON a.announcement_id = uas.announcement_id AND uas.user_id = ?
+                       WHERE (a.target_roles = 'all' OR a.target_roles = 'customers')
+                       AND (a.status = 'active')
+                       AND (a.expires_at IS NULL OR a.expires_at > NOW())
+                       
+                       ORDER BY created_at DESC";
 $notifications_stmt = $conn->prepare($notifications_query);
-$notifications_stmt->bind_param("i", $customer_id);
+$notifications_stmt->bind_param("ii", $customer_id, $customer_id);
 $notifications_stmt->execute();
 $notifications_result = $notifications_stmt->get_result();
 
-// Get unread notification count
-$unread_notif_query = "SELECT COUNT(DISTINCT n.notification_id) as count 
-                      FROM notifications n
-                      LEFT JOIN user_notification_status uns ON n.notification_id = uns.notification_id AND uns.user_id = ?
-                      WHERE (n.target_roles = 'all' OR n.target_roles = 'customers')
-                      AND (uns.is_read IS NULL OR uns.is_read = FALSE)
-                      AND (n.expires_at IS NULL OR n.expires_at > NOW())";
+// CHANGED: Get unread notification count (both notifications and announcements)
+$unread_notif_query = "SELECT 
+                       (SELECT COUNT(DISTINCT n.notification_id) 
+                        FROM notifications n
+                        LEFT JOIN user_notification_status uns ON n.notification_id = uns.notification_id AND uns.user_id = ?
+                        WHERE (n.target_roles = 'all' OR n.target_roles = 'customers')
+                        AND (uns.is_read IS NULL OR uns.is_read = FALSE)
+                        AND (n.expires_at IS NULL OR n.expires_at > NOW())) +
+                       (SELECT COUNT(DISTINCT a.announcement_id) 
+                        FROM announcements a
+                        LEFT JOIN user_announcement_status uas ON a.announcement_id = uas.announcement_id AND uas.user_id = ?
+                        WHERE (a.target_roles = 'all' OR a.target_roles = 'customers')
+                        AND (uas.is_read IS NULL OR uas.is_read = FALSE)
+                        AND (a.status = 'active')
+                        AND (a.expires_at IS NULL OR a.expires_at > NOW())) as count";
 $unread_notif_stmt = $conn->prepare($unread_notif_query);
-$unread_notif_stmt->bind_param("i", $customer_id);
+$unread_notif_stmt->bind_param("ii", $customer_id, $customer_id);
 $unread_notif_stmt->execute();
 $unread_notif_result = $unread_notif_stmt->get_result();
 $unread_notif_count = $unread_notif_result->fetch_assoc()['count'];
@@ -176,6 +254,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
             --spice-green: #27ae60;
             --spice-gold: #f39c12;
             --spice-blue: #3498db;
+            --spice-purple: #9b59b6;
             --spice-light: #f8f9fa;
         }
         
@@ -286,6 +365,16 @@ $read_notifications = $total_notifications - $unread_notif_count;
             border-left: 4px solid #e74c3c;
         }
         
+        /* ADDED: Announcement type styling */
+        .notification-item.announcement {
+            border-left: 4px solid var(--spice-purple);
+        }
+        
+        .notification-item.announcement.unread {
+            background: rgba(155, 89, 182, 0.05);
+            border-left: 4px solid var(--spice-purple);
+        }
+        
         .notification-title {
             font-weight: 600;
             color: var(--spice-dark);
@@ -329,6 +418,12 @@ $read_notifications = $total_notifications - $unread_notif_count;
         .badge-audience {
             background: rgba(52, 152, 219, 0.1);
             color: var(--spice-blue);
+        }
+        
+        /* ADDED: Announcement badge */
+        .badge-announcement {
+            background: rgba(155, 89, 182, 0.1);
+            color: var(--spice-purple);
         }
         
         /* Empty State */
@@ -407,10 +502,47 @@ $read_notifications = $total_notifications - $unread_notif_count;
         .filter-buttons .btn {
             margin: 0 5px 5px 0;
         }
+        
+        /* Welcome Banner */
+        .welcome-banner {
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        
+        /* Stat Cards */
+        .stat-card {
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
-    <!-- Navigation -->
+    <!-- Navigation (KEEP EXACTLY AS IS) -->
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="home.php">
@@ -448,7 +580,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
     <!-- Dashboard Content -->
     <div class="container-fluid mt-4 dashboard-container">
         <div class="row">
-            <!-- Sidebar -->
+            <!-- Sidebar (KEEP EXACTLY AS IS) -->
             <div class="col-lg-3">
                 <div class="sidebar">
                     <div class="text-center mb-4">
@@ -607,6 +739,10 @@ $read_notifications = $total_notifications - $unread_notif_count;
                             <a href="?filter=read" class="btn <?php echo isset($_GET['filter']) && $_GET['filter'] == 'read' ? 'btn-spice' : 'btn-outline-secondary'; ?>">
                                 <i class="fas fa-check-circle me-1"></i>Read
                             </a>
+                            <!-- ADDED: Announcement filter -->
+                            <a href="?filter=announcements" class="btn <?php echo isset($_GET['filter']) && $_GET['filter'] == 'announcements' ? 'btn-spice' : 'btn-outline-secondary'; ?>">
+                                <i class="fas fa-bullhorn me-1"></i>Announcements
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -614,7 +750,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
                 <!-- Notifications List -->
                 <div class="dashboard-card">
                     <div class="card-header">
-                        <i class="fas fa-bullhorn me-2"></i>System Notifications
+                        <i class="fas fa-bullhorn me-2"></i>System Notifications & Announcements
                         <div class="float-end">
                             <span class="badge bg-warning"><?php echo $unread_notif_count; ?> Unread</span>
                         </div>
@@ -628,8 +764,10 @@ $read_notifications = $total_notifications - $unread_notif_count;
                                     $is_read = $notification['is_read'] == 1;
                                     $is_important = $notification['is_important'] == 1;
                                     $is_expired = $notification['expires_at'] && strtotime($notification['expires_at']) < time();
+                                    $type = $notification['type']; // 'notification' or 'announcement'
                                 ?>
-                                <div class="notification-item <?php echo !$is_read ? 'unread' : 'read'; ?> <?php echo $is_important ? 'notification-important' : ''; ?>">
+                                <!-- CHANGED: Added conditional class for announcement type -->
+                                <div class="notification-item <?php echo !$is_read ? 'unread' : 'read'; ?> <?php echo $is_important ? 'notification-important' : ''; ?> <?php echo $type; ?>">
                                     <div class="notification-dot"></div>
                                     
                                     <div class="d-flex justify-content-between align-items-start mb-2">
@@ -637,6 +775,13 @@ $read_notifications = $total_notifications - $unread_notif_count;
                                             <?php if($is_important): ?>
                                                 <span class="notification-badge badge-important me-2">
                                                     <i class="fas fa-exclamation-circle me-1"></i>Important
+                                                </span>
+                                            <?php endif; ?>
+                                            
+                                            <!-- ADDED: Type badge -->
+                                            <?php if($type == 'announcement'): ?>
+                                                <span class="notification-badge badge-announcement me-2">
+                                                    <i class="fas fa-bullhorn me-1"></i>Announcement
                                                 </span>
                                             <?php endif; ?>
                                             
@@ -654,7 +799,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
                                     </div>
                                     
                                     <div class="notification-title">
-                                        <i class="fas fa-<?php echo $is_important ? 'exclamation-triangle text-danger' : 'info-circle text-info'; ?> me-2"></i>
+                                        <i class="fas fa-<?php echo $is_important ? 'exclamation-triangle text-danger' : ($type == 'announcement' ? 'bullhorn text-purple' : 'info-circle text-info'); ?> me-2"></i>
                                         <?php echo htmlspecialchars($notification['title']); ?>
                                     </div>
                                     
@@ -673,9 +818,16 @@ $read_notifications = $total_notifications - $unread_notif_count;
                                     
                                     <div class="notification-actions">
                                         <?php if(!$is_read): ?>
-                                            <a href="?mark_read=<?php echo $notification['notification_id']; ?>" class="btn btn-sm btn-outline-success">
-                                                <i class="fas fa-check me-1"></i>Mark as Read
-                                            </a>
+                                            <!-- CHANGED: Different mark read links based on type -->
+                                            <?php if($type == 'announcement'): ?>
+                                                <a href="?mark_announce_read=<?php echo $notification['id']; ?>" class="btn btn-sm btn-outline-success">
+                                                    <i class="fas fa-check me-1"></i>Mark as Read
+                                                </a>
+                                            <?php else: ?>
+                                                <a href="?mark_read=<?php echo $notification['id']; ?>" class="btn btn-sm btn-outline-success">
+                                                    <i class="fas fa-check me-1"></i>Mark as Read
+                                                </a>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <small class="text-success">
                                                 <i class="fas fa-check me-1"></i>Read on <?php echo date('M j, Y', strtotime($notification['read_at'])); ?>
@@ -706,7 +858,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
         </div>
     </div>
 
-    <!-- Footer -->
+    <!-- Footer (KEEP EXACTLY AS IS) -->
     <footer style="background: var(--spice-dark); color: white; padding: 50px 0 20px; margin-top: 80px;">
         <div class="container">
             <div class="row">
@@ -772,11 +924,15 @@ $read_notifications = $total_notifications - $unread_notif_count;
         document.querySelectorAll('.notification-item.unread').forEach(item => {
             item.addEventListener('click', function(e) {
                 if (!e.target.closest('a')) {
-                    const notificationId = this.querySelector('a[href*="mark_read="]');
-                    if (notificationId) {
-                        const url = new URL(notificationId.href, window.location.origin);
+                    // CHANGED: Handle both notification and announcement links
+                    const notificationLink = this.querySelector('a[href*="mark_read="]');
+                    const announcementLink = this.querySelector('a[href*="mark_announce_read="]');
+                    const markLink = notificationLink || announcementLink;
+                    
+                    if (markLink) {
+                        const url = new URL(markLink.href, window.location.origin);
                         const params = new URLSearchParams(url.search);
-                        const id = params.get('mark_read');
+                        const id = params.get('mark_read') || params.get('mark_announce_read');
                         
                         // Update UI immediately
                         this.classList.remove('unread');
@@ -805,7 +961,7 @@ $read_notifications = $total_notifications - $unread_notif_count;
                         }
                         
                         // Send request to mark as read
-                        fetch(`?mark_read=${id}`, {method: 'GET'});
+                        fetch(`?${markLink.href.split('?')[1]}`, {method: 'GET'});
                     }
                 }
             });

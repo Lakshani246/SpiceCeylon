@@ -45,6 +45,39 @@ if (isset($_GET['delete_order']) && isset($_GET['order_id'])) {
 }
 // ========== END DELETE LOGIC ==========
 
+// ========== CANCEL ORDER LOGIC (for order details page) ==========
+if (isset($_GET['cancel_order']) && isset($_GET['order_id'])) {
+    $order_id_to_cancel = intval($_GET['order_id']);
+    
+    $check_query = "SELECT status FROM orders WHERE order_id = ? AND customer_id = ?";
+    $check_stmt = $conn->prepare($check_query);
+    $check_stmt->bind_param("ii", $order_id_to_cancel, $user_id);
+    $check_stmt->execute();
+    $check_result = $check_stmt->get_result();
+    
+    if ($check_result->num_rows > 0) {
+        $order_data = $check_result->fetch_assoc();
+        if ($order_data['status'] === 'Pending') {
+            // Update order status to 'Cancelled' instead of deleting
+            $cancel_order_query = "UPDATE orders SET status = 'Cancelled' WHERE order_id = ? AND customer_id = ?";
+            $cancel_order_stmt = $conn->prepare($cancel_order_query);
+            $cancel_order_stmt->bind_param("ii", $order_id_to_cancel, $user_id);
+            
+            if ($cancel_order_stmt->execute()) {
+                $_SESSION['success_message'] = "Order #" . str_pad($order_id_to_cancel, 6, '0', STR_PAD_LEFT) . " has been successfully cancelled.";
+            } else {
+                $_SESSION['error_message'] = "Failed to cancel order. Please try again.";
+            }
+        } else {
+            $_SESSION['error_message'] = "Only orders with 'Pending' status can be cancelled.";
+        }
+    }
+    
+    header("Location: orders.php?order_id=" . $order_id_to_cancel);
+    exit;
+}
+// ========== END CANCEL ORDER LOGIC ==========
+
 // Get all orders for this customer
 $orders_query = "
     SELECT o.*, COUNT(oi.order_item_id) as item_count, 
@@ -306,6 +339,11 @@ if ($order_id) {
             color: white;
         }
         
+        .timeline-dot.cancelled {
+            background: #e74c3c;
+            color: white;
+        }
+        
         .timeline-content {
             flex: 1;
         }
@@ -504,6 +542,23 @@ if ($order_id) {
                 margin-bottom: 10px;
             }
         }
+        
+        /* Cancelled Order Styling */
+        .order-card.cancelled {
+            opacity: 0.8;
+            background: rgba(231, 76, 60, 0.02);
+        }
+        
+        .cancelled-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(231, 76, 60, 0.05);
+            pointer-events: none;
+            z-index: 1;
+        }
     </style>
 </head>
 <body>
@@ -572,7 +627,7 @@ if ($order_id) {
 
         <?php if ($order_id && $order_details): ?>
             <!-- ========== ORDER DETAILS VIEW ========== -->
-            <div class="order-card">
+            <div class="order-card <?php echo $order_details['status'] === 'Cancelled' ? 'cancelled' : ''; ?>">
                 <div class="order-card-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -582,15 +637,26 @@ if ($order_id) {
                                 <?php echo date('F j, Y g:i A', strtotime($order_details['created_at'])); ?>
                             </p>
                         </div>
-                        <div>
+                        <div class="d-flex gap-2">
+                            <span class="status-badge status-<?php echo strtolower($order_details['status']); ?>">
+                                <?php echo $order_details['status']; ?>
+                            </span>
+                            <!-- ADDED: Cancel button for order details page -->
                             <?php if ($order_details['status'] === 'Pending'): ?>
-                                <button type="button" class="btn btn-danger-outline" data-bs-toggle="modal" data-bs-target="#deleteModal<?php echo $order_details['order_id']; ?>">
+                                <button type="button" class="btn btn-danger-outline" data-bs-toggle="modal" data-bs-target="#cancelOrderModal<?php echo $order_details['order_id']; ?>">
                                     <i class="fas fa-times-circle me-2"></i>Cancel Order
                                 </button>
                             <?php endif; ?>
                         </div>
                     </div>
                 </div>
+                
+                <?php if ($order_details['status'] === 'Cancelled'): ?>
+                    <div class="alert alert-danger m-3">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        This order has been cancelled. No further actions can be taken.
+                    </div>
+                <?php endif; ?>
                 
                 <div class="order-card-body">
                     <!-- Timeline -->
@@ -600,16 +666,37 @@ if ($order_id) {
                             <?php
                             $statuses = [
                                 'Pending' => ['icon' => 'fa-clock', 'class' => 'pending'],
-                                'Confirmed' => ['icon' => 'fa-check', 'class' => $order_details['status'] == 'Pending' ? 'pending' : 'completed'],
-                                'Processing' => ['icon' => 'fa-cog', 'class' => in_array($order_details['status'], ['Pending', 'Confirmed']) ? 'pending' : 'completed'],
-                                'Shipped' => ['icon' => 'fa-shipping-fast', 'class' => in_array($order_details['status'], ['Pending', 'Confirmed', 'Processing']) ? 'pending' : 'completed'],
-                                'Delivered' => ['icon' => 'fa-box-open', 'class' => 'completed']
+                                'Confirmed' => ['icon' => 'fa-check', 'class' => 'pending'],
+                                'Processing' => ['icon' => 'fa-cog', 'class' => 'pending'],
+                                'Shipped' => ['icon' => 'fa-shipping-fast', 'class' => 'pending'],
+                                'Delivered' => ['icon' => 'fa-box-open', 'class' => 'pending'],
+                                'Cancelled' => ['icon' => 'fa-times-circle', 'class' => 'cancelled']
                             ];
                             
                             $currentStatus = $order_details['status'];
-                            foreach ($statuses as $status => $info): 
-                                $isActive = $currentStatus == $status;
-                                $dotClass = $isActive ? 'active' : $info['class'];
+                            
+                            // If order is cancelled, show cancelled status only
+                            if ($currentStatus === 'Cancelled') {
+                                ?>
+                                <div class="timeline-step">
+                                    <div class="timeline-dot cancelled">
+                                        <i class="fas fa-times-circle"></i>
+                                    </div>
+                                    <div class="timeline-content">
+                                        <h6>Cancelled</h6>
+                                        <p class="text-danger"><i class="fas fa-circle me-1" style="font-size: 0.6rem;"></i> Order Cancelled</p>
+                                    </div>
+                                </div>
+                                <?php
+                            } else {
+                                // Show normal timeline for non-cancelled orders
+                                foreach ($statuses as $status => $info): 
+                                    if ($status === 'Cancelled') continue; // Skip cancelled in normal flow
+                                    $isActive = $currentStatus == $status;
+                                    $isCompleted = array_search($currentStatus, array_keys($statuses)) > array_search($status, array_keys($statuses));
+                                    $dotClass = 'pending';
+                                    if ($isActive) $dotClass = 'active';
+                                    elseif ($isCompleted) $dotClass = 'completed';
                             ?>
                             <div class="timeline-step">
                                 <div class="timeline-dot <?php echo $dotClass; ?>">
@@ -622,7 +709,10 @@ if ($order_id) {
                                     <?php endif; ?>
                                 </div>
                             </div>
-                            <?php endforeach; ?>
+                            <?php 
+                                endforeach;
+                            } 
+                            ?>
                         </div>
                     </div>
 
@@ -735,6 +825,37 @@ if ($order_id) {
                 </div>
             </div>
 
+            <!-- ADDED: Cancel Order Modal for Order Details Page -->
+            <div class="modal fade" id="cancelOrderModal<?php echo $order_details['order_id']; ?>" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">
+                                <i class="fas fa-exclamation-triangle text-danger me-2"></i>
+                                Cancel Order #<?php echo str_pad($order_details['order_id'], 6, '0', STR_PAD_LEFT); ?>
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p>Are you sure you want to cancel this order? This action cannot be undone.</p>
+                            <div class="alert alert-warning">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <small>Cancelling this order will update its status to "Cancelled". You can still view the order details afterwards.</small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i>Keep Order
+                            </button>
+                            <a href="orders.php?cancel_order=true&order_id=<?php echo $order_details['order_id']; ?>" 
+                               class="btn btn-danger">
+                                <i class="fas fa-ban me-1"></i>Cancel Order
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         <?php else: ?>
             <!-- ========== ORDERS LIST VIEW ========== -->
             <?php if ($orders_result->num_rows > 0): ?>
@@ -743,7 +864,7 @@ if ($order_id) {
                         $statusClass = 'status-' . strtolower($order['status']);
                     ?>
                     <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="order-card">
+                        <div class="order-card <?php echo $order['status'] === 'Cancelled' ? 'cancelled' : ''; ?>">
                             <div class="order-card-header">
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div>
@@ -782,11 +903,12 @@ if ($order_id) {
                                     </div>
                                     <div class="d-flex gap-2">
                                         <?php if ($order['status'] === 'Pending'): ?>
+                                            <!-- CHANGED: Changed from delete to cancel modal -->
                                             <button type="button" class="btn btn-sm btn-danger-outline" 
                                                     data-bs-toggle="modal" 
-                                                    data-bs-target="#deleteModal<?php echo $order['order_id']; ?>"
+                                                    data-bs-target="#cancelOrderModal<?php echo $order['order_id']; ?>"
                                                     title="Cancel Order">
-                                                <i class="fas fa-trash"></i>
+                                                <i class="fas fa-ban"></i>
                                             </button>
                                         <?php endif; ?>
                                         <a href="orders.php?order_id=<?php echo $order['order_id']; ?>" 
@@ -798,8 +920,8 @@ if ($order_id) {
                             </div>
                         </div>
                         
-                        <!-- Delete Confirmation Modal -->
-                        <div class="modal fade" id="deleteModal<?php echo $order['order_id']; ?>" tabindex="-1">
+                        <!-- CHANGED: Cancel Order Modal (replaced delete modal) -->
+                        <div class="modal fade" id="cancelOrderModal<?php echo $order['order_id']; ?>" tabindex="-1">
                             <div class="modal-dialog">
                                 <div class="modal-content">
                                     <div class="modal-header">
@@ -820,9 +942,9 @@ if ($order_id) {
                                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                             <i class="fas fa-times me-1"></i>Keep Order
                                         </button>
-                                        <a href="orders.php?delete_order=true&order_id=<?php echo $order['order_id']; ?>" 
+                                        <a href="orders.php?cancel_order=true&order_id=<?php echo $order['order_id']; ?>" 
                                            class="btn btn-danger">
-                                            <i class="fas fa-trash me-1"></i>Cancel Order
+                                            <i class="fas fa-ban me-1"></i>Cancel Order
                                         </a>
                                     </div>
                                 </div>

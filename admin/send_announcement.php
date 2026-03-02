@@ -1,7 +1,8 @@
 <?php
 session_start();
 
-if (!isset($_SESSION['admin_id']) || $_SESSION['role'] != 'super_admin') {
+// Check if admin is logged in
+if (!isset($_SESSION['admin_id'])) {
     header("Location: ../auth/login.php");
     exit();
 }
@@ -15,99 +16,130 @@ $admin_query->bind_param("i", $admin_id);
 $admin_query->execute();
 $admin = $admin_query->get_result()->fetch_assoc();
 
-// Handle announcement sending
+// Handle announcement sending - FIXED: Same page submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['send_announcement'])) {
-    $title = trim($_POST['title']);
-    $message = trim($_POST['message']);
-    $target_roles = $_POST['target_roles'];
+    $title = $conn->real_escape_string($_POST['title']);
+    $message = $conn->real_escape_string($_POST['message']);
+    $target_roles = $conn->real_escape_string($_POST['target_roles']);
     $is_important = isset($_POST['is_important']) ? 1 : 0;
-    $expires_at = !empty($_POST['expires_at']) ? $_POST['expires_at'] . ' 23:59:59' : NULL;
-    $target_user_id = !empty($_POST['target_user_id']) ? $_POST['target_user_id'] : NULL;
+    $announcement_type = $conn->real_escape_string($_POST['announcement_type']);
+    $expires_at = !empty($_POST['expires_at']) ? "'" . $_POST['expires_at'] . " 23:59:59'" : "NULL";
+    $target_user_id = !empty($_POST['target_user_id']) ? (int)$_POST['target_user_id'] : 0;
     
-    // Validate inputs
-    if (empty($title) || empty($message) || empty($target_roles)) {
-        $error_msg = "Please fill in all required fields.";
-    } else {
-        // Insert notification
-        $stmt = $conn->prepare("INSERT INTO notifications (title, message, target_roles, target_user_id, sender_id, sender_role, is_important, expires_at) VALUES (?, ?, ?, ?, ?, 'admin', ?, ?)");
-        $stmt->bind_param("sssiiss", $title, $message, $target_roles, $target_user_id, $admin_id, $is_important, $expires_at);
+    // Insert into announcements table
+    $sql = "INSERT INTO announcements (title, message, target_roles, target_user_id, created_by, is_important, announcement_type, expires_at, status, created_at) 
+            VALUES ('$title', '$message', '$target_roles', " . ($target_user_id ?: 'NULL') . ", $admin_id, $is_important, '$announcement_type', $expires_at, 'active', NOW())";
+    
+    if ($conn->query($sql)) {
+        $announcement_id = $conn->insert_id;
+        $success_message = "Announcement sent successfully!";
         
-        if ($stmt->execute()) {
-            $notification_id = $conn->insert_id;
-            $success_msg = "Announcement sent successfully!";
-            
-            // Create notification status entries for all targeted users
-            if ($target_roles != 'specific') {
-                // Get all users based on target role
-                $target_users_query = "";
-                switch($target_roles) {
-                    case 'all':
-                        $target_users_query = "SELECT user_id FROM users";
-                        break;
-                    case 'customers':
-                        $target_users_query = "SELECT user_id FROM users WHERE role='customer'";
-                        break;
-                    case 'farmers':
-                        $target_users_query = "SELECT user_id FROM users WHERE role='farmer'";
-                        break;
-                    case 'admins':
-                        // For admins, get from admins table
-                        $target_users_query = "SELECT admin_id as user_id FROM admins WHERE status='active'";
-                        break;
-                }
-                
-                if (!empty($target_users_query)) {
-                    $users_result = $conn->query($target_users_query);
-                    while($user = $users_result->fetch_assoc()) {
-                        $status_stmt = $conn->prepare("INSERT INTO user_notification_status (notification_id, user_id) VALUES (?, ?)");
-                        $status_stmt->bind_param("ii", $notification_id, $user['user_id']);
-                        $status_stmt->execute();
-                    }
-                }
-            } else {
-                // For specific user, create single entry
-                if ($target_user_id) {
-                    $status_stmt = $conn->prepare("INSERT INTO user_notification_status (notification_id, user_id) VALUES (?, ?)");
-                    $status_stmt->bind_param("ii", $notification_id, $target_user_id);
-                    $status_stmt->execute();
-                }
+        // Create status entries for all target users
+        $recipient_count = 0;
+        
+        if ($target_roles == 'all') {
+            $result = $conn->query("SELECT user_id FROM users WHERE status = 'active'");
+            while($row = $result->fetch_assoc()) {
+                $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, {$row['user_id']})");
+                $recipient_count++;
             }
+            // Also add admins
+            $result = $conn->query("SELECT admin_id as user_id FROM admins WHERE status = 'active'");
+            while($row = $result->fetch_assoc()) {
+                $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, {$row['user_id']})");
+                $recipient_count++;
+            }
+            $success_message .= " Sent to $recipient_count recipients.";
             
-            // Clear form after successful submission
-            $_POST = array();
-        } else {
-            $error_msg = "Failed to send announcement: " . $conn->error;
+        } elseif ($target_roles == 'customers') {
+            $result = $conn->query("SELECT user_id FROM users WHERE role = 'customer' AND status = 'active'");
+            while($row = $result->fetch_assoc()) {
+                $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, {$row['user_id']})");
+                $recipient_count++;
+            }
+            $success_message .= " Sent to $recipient_count customers.";
+            
+        } elseif ($target_roles == 'farmers') {
+            $result = $conn->query("SELECT user_id FROM users WHERE role = 'farmer' AND status = 'active'");
+            while($row = $result->fetch_assoc()) {
+                $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, {$row['user_id']})");
+                $recipient_count++;
+            }
+            $success_message .= " Sent to $recipient_count farmers.";
+            
+        } elseif ($target_roles == 'admins') {
+            $result = $conn->query("SELECT admin_id as user_id FROM admins WHERE status = 'active'");
+            while($row = $result->fetch_assoc()) {
+                $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, {$row['user_id']})");
+                $recipient_count++;
+            }
+            $success_message .= " Sent to $recipient_count admins.";
+            
+        } elseif ($target_roles == 'specific' && $target_user_id > 0) {
+            $conn->query("INSERT INTO user_announcement_status (announcement_id, user_id) VALUES ($announcement_id, $target_user_id)");
+            $success_message .= " Sent to specific user.";
         }
+        
+    } else {
+        $error_message = "Failed to send announcement: " . $conn->error;
     }
 }
 
-// Get statistics
-$total_customers = $conn->query("SELECT COUNT(*) as count FROM users WHERE role='customer'")->fetch_assoc()['count'];
-$total_farmers = $conn->query("SELECT COUNT(*) as count FROM users WHERE role='farmer'")->fetch_assoc()['count'];
-$total_admins = $conn->query("SELECT COUNT(*) as count FROM admins WHERE status='active'")->fetch_assoc()['count'];
+// Handle announcement actions
+if (isset($_GET['delete'])) {
+    $announcement_id = (int)$_GET['delete'];
+    // First delete from user_announcement_status
+    $conn->query("DELETE FROM user_announcement_status WHERE announcement_id = $announcement_id");
+    // Then delete from announcements
+    $conn->query("DELETE FROM announcements WHERE announcement_id = $announcement_id");
+    $success_message = "Announcement deleted successfully!";
+}
+
+if (isset($_GET['archive'])) {
+    $announcement_id = (int)$_GET['archive'];
+    $conn->query("UPDATE announcements SET status = 'archived' WHERE announcement_id = $announcement_id");
+    $success_message = "Announcement archived successfully!";
+}
+
+if (isset($_GET['activate'])) {
+    $announcement_id = (int)$_GET['activate'];
+    $conn->query("UPDATE announcements SET status = 'active' WHERE announcement_id = $announcement_id");
+    $success_message = "Announcement activated successfully!";
+}
+
+// Get counts for different announcement stats
+$total_announcements = $conn->query("SELECT COUNT(*) as count FROM announcements")->fetch_assoc()['count'];
+$active_announcements = $conn->query("SELECT COUNT(*) as count FROM announcements WHERE status = 'active'")->fetch_assoc()['count'];
+$important_announcements = $conn->query("SELECT COUNT(*) as count FROM announcements WHERE is_important = 1")->fetch_assoc()['count'];
+$expired_announcements = $conn->query("SELECT COUNT(*) as count FROM announcements WHERE expires_at < NOW() AND expires_at IS NOT NULL")->fetch_assoc()['count'];
+
+// Get user counts for audience stats
+$total_customers = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'customer' AND status = 'active'")->fetch_assoc()['count'];
+$total_farmers = $conn->query("SELECT COUNT(*) as count FROM users WHERE role = 'farmer' AND status = 'active'")->fetch_assoc()['count'];
+$total_admins = $conn->query("SELECT COUNT(*) as count FROM admins WHERE status = 'active'")->fetch_assoc()['count'];
 $total_users = $total_customers + $total_farmers + $total_admins;
 
-// Get announcement statistics
-$total_announcements = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE sender_role = 'admin'")->fetch_assoc()['count'];
-$today_announcements = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE sender_role = 'admin' AND DATE(created_at) = CURDATE()")->fetch_assoc()['count'];
-$important_announcements = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE sender_role = 'admin' AND is_important = 1")->fetch_assoc()['count'];
-
-// Get recent announcements
-$recent_announcements = $conn->query("
-    SELECT n.*, 
-           (SELECT COUNT(*) FROM user_notification_status uns WHERE uns.notification_id = n.notification_id AND uns.is_read = TRUE) as read_count
-    FROM notifications n
-    WHERE n.sender_role = 'admin'
-    ORDER BY n.created_at DESC
-    LIMIT 5
+// Get all announcements with read statistics
+$announcements_list = $conn->query("
+    SELECT a.*, adm.username as admin_name,
+           (SELECT COUNT(*) FROM user_announcement_status uas WHERE uas.announcement_id = a.announcement_id) as total_recipients,
+           (SELECT COUNT(*) FROM user_announcement_status uas WHERE uas.announcement_id = a.announcement_id AND uas.is_read = 1) as read_count
+    FROM announcements a
+    LEFT JOIN admins adm ON a.created_by = adm.admin_id
+    ORDER BY 
+        CASE a.status 
+            WHEN 'active' THEN 1 
+            WHEN 'archived' THEN 2 
+            ELSE 3 
+        END,
+        a.created_at DESC
 ");
 
 // Get users for specific targeting
-$all_users = $conn->query("SELECT user_id, name, email, role FROM users ORDER BY role, name");
+$all_users = $conn->query("SELECT user_id, name, email, role FROM users WHERE status = 'active' ORDER BY role, name");
 
-// Get today's date for display
-$today = date('l, F j, Y');
-$current_time = date('h:i A');
+// Announcement types
+$announcement_types = ['general', 'maintenance', 'promotion', 'update', 'event', 'alert'];
 ?>
 
 <!DOCTYPE html>
@@ -115,7 +147,7 @@ $current_time = date('h:i A');
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Send Announcement - SpiceCeylon Admin</title>
+    <title>Announcements - SpiceCeylon Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -126,20 +158,21 @@ $current_time = date('h:i A');
             --spice-gold: #f39c12;
             --spice-blue: #3498db;
             --spice-purple: #9b59b6;
+            --spice-orange: #e67e22;
             --spice-teal: #1abc9c;
-            --pending: #f39c12;
-            --processing: #3498db;
-            --shipped: #9b59b6;
-            --delivered: #27ae60;
-            --completed: #2ecc71;
-            --confirmed: #1abc9c;
-            --cancelled: #e74c3c;
+        }
+        
+        body {
+            background: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         .sidebar {
             background: linear-gradient(180deg, var(--spice-dark) 0%, #1a252f 100%);
             min-height: 100vh;
             box-shadow: 3px 0 15px rgba(0,0,0,0.2);
+            position: fixed;
+            width: 250px;
         }
         
         .sidebar .nav-link {
@@ -167,7 +200,12 @@ $current_time = date('h:i A');
             background: linear-gradient(135deg, rgba(184, 92, 56, 0.2), rgba(39, 174, 96, 0.1));
         }
         
-        .dashboard-header {
+        .main-content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        
+        .page-header {
             background: white;
             padding: 25px;
             border-radius: 12px;
@@ -176,544 +214,723 @@ $current_time = date('h:i A');
             border-left: 5px solid var(--spice-purple);
         }
         
-        .analytics-card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            border: 1px solid #e9ecef;
-            transition: transform 0.3s ease;
-        }
-        
-        .analytics-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
         
         .stat-card {
+            background: white;
             border-radius: 12px;
             padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
             transition: transform 0.3s ease;
-            cursor: pointer;
-            color: white;
-            height: 100%;
         }
         
         .stat-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
         
-        .stat-card.all {
-            background: linear-gradient(135deg, var(--spice-purple), #8e44ad);
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            color: white;
         }
         
-        .stat-card.customers {
-            background: linear-gradient(135deg, var(--spice-blue), #2980b9);
-        }
+        .stat-icon.purple { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        .stat-icon.green { background: linear-gradient(135deg, #27ae60, #229954); }
+        .stat-icon.red { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .stat-icon.orange { background: linear-gradient(135deg, #f39c12, #e67e22); }
         
-        .stat-card.farmers {
-            background: linear-gradient(135deg, var(--spice-green), #219653);
-        }
-        
-        .stat-card.admins {
-            background: linear-gradient(135deg, var(--spice-gold), #e67e22);
-        }
-        
-        .stat-card.announcements {
-            background: linear-gradient(135deg, var(--spice-red), #d35400);
-        }
-        
-        .stat-card .stat-value {
-            font-size: 2rem;
+        .stat-info h3 {
+            font-size: 1.8rem;
             font-weight: 700;
+            margin: 0;
+            color: var(--spice-dark);
+        }
+        
+        .stat-info p {
+            margin: 0;
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+        
+        /* Announcement Cards */
+        .announcement-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f1f1f1;
+        }
+        
+        .section-header h4 {
+            margin: 0;
+            color: var(--spice-dark);
+            font-weight: 600;
+        }
+        
+        .section-header h4 i {
+            margin-right: 10px;
+            color: var(--spice-purple);
+        }
+        
+        /* Send Announcement Form */
+        .send-announcement-form {
+            background: linear-gradient(135deg, #667eea0d, #764ba20d);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: var(--spice-dark);
             margin-bottom: 5px;
         }
         
-        .stat-card .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
+        .form-control, .form-select {
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            padding: 10px 15px;
         }
         
-        .announcement-card {
-            background: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            border: 1px solid #e9ecef;
-            transition: all 0.3s ease;
+        .form-control:focus, .form-select:focus {
+            border-color: var(--spice-purple);
+            box-shadow: 0 0 0 0.2rem rgba(155, 89, 182, 0.25);
         }
         
-        .announcement-card:hover {
-            box-shadow: 0 4px 12px rgba(155, 89, 182, 0.1);
-        }
-        
-        .announcement-card.important {
-            border-left: 4px solid var(--spice-red);
-            background: #fff8f8;
-        }
-        
-        .btn-announce {
+        .btn-send {
             background: linear-gradient(135deg, var(--spice-purple), #8e44ad);
             color: white;
             border: none;
-            padding: 12px 30px;
+            padding: 10px 25px;
             border-radius: 8px;
+            font-weight: 500;
             transition: all 0.3s ease;
         }
         
-        .btn-announce:hover {
+        .btn-send:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(155, 89, 182, 0.3);
+            box-shadow: 0 5px 15px rgba(155, 89, 182, 0.4);
             color: white;
         }
         
+        /* Announcement Items */
+        .announcement-item {
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .announcement-item:hover {
+            background: #f1f3f5;
+            transform: translateX(5px);
+        }
+        
+        .announcement-item.important {
+            border-left-color: var(--spice-red);
+            background: linear-gradient(90deg, rgba(184, 92, 56, 0.05), #f8f9fa);
+        }
+        
+        .announcement-item.active {
+            border-left-color: var(--spice-green);
+        }
+        
+        .announcement-item.archived {
+            border-left-color: #95a5a6;
+            opacity: 0.7;
+        }
+        
+        .announcement-item.maintenance { border-left-color: var(--spice-orange); }
+        .announcement-item.promotion { border-left-color: var(--spice-green); }
+        .announcement-item.update { border-left-color: var(--spice-blue); }
+        .announcement-item.event { border-left-color: var(--spice-purple); }
+        .announcement-item.alert { border-left-color: var(--spice-red); }
+        
+        .announcement-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: white;
+            flex-shrink: 0;
+        }
+        
+        .announcement-icon.general { background: var(--spice-purple); }
+        .announcement-icon.maintenance { background: var(--spice-orange); }
+        .announcement-icon.promotion { background: var(--spice-green); }
+        .announcement-icon.update { background: var(--spice-blue); }
+        .announcement-icon.event { background: var(--spice-gold); }
+        .announcement-icon.alert { background: var(--spice-red); }
+        
+        .announcement-content {
+            flex: 1;
+        }
+        
+        .announcement-title {
+            font-weight: 600;
+            color: var(--spice-dark);
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .announcement-title .badge {
+            font-size: 0.7rem;
+            padding: 3px 8px;
+        }
+        
+        .announcement-message {
+            color: #4a5568;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+        
+        .announcement-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: #718096;
+            flex-wrap: wrap;
+        }
+        
+        .announcement-meta i {
+            margin-right: 3px;
+            font-size: 0.7rem;
+        }
+        
+        .announcement-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .announcement-actions .btn-sm {
+            padding: 3px 10px;
+            font-size: 0.8rem;
+            border-radius: 20px;
+        }
+        
+        /* Target Badges */
         .target-badge {
             padding: 4px 10px;
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 600;
+            display: inline-block;
         }
         
-        .badge-all {
-            background: rgba(155, 89, 182, 0.1);
-            color: var(--spice-purple);
+        .badge-all { background: rgba(155, 89, 182, 0.1); color: var(--spice-purple); }
+        .badge-customers { background: rgba(52, 152, 219, 0.1); color: var(--spice-blue); }
+        .badge-farmers { background: rgba(39, 174, 96, 0.1); color: var(--spice-green); }
+        .badge-admins { background: rgba(243, 156, 18, 0.1); color: var(--spice-gold); }
+        .badge-specific { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+        
+        /* Type Badges */
+        .type-badge {
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: inline-block;
         }
         
-        .badge-customers {
-            background: rgba(52, 152, 219, 0.1);
-            color: var(--spice-blue);
+        .type-general { background: #e2e8f0; color: #4a5568; }
+        .type-maintenance { background: #fed7d7; color: #9b2c2c; }
+        .type-promotion { background: #c6f6d5; color: #22543d; }
+        .type-update { background: #bee3f8; color: #2c5282; }
+        .type-event { background: #e9d8fd; color: #553c9a; }
+        .type-alert { background: #feebc8; color: #7b341e; }
+        
+        /* Status Badges */
+        .status-badge {
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
         }
         
-        .badge-farmers {
-            background: rgba(39, 174, 96, 0.1);
-            color: var(--spice-green);
+        .status-badge.active { background: #d4edda; color: #155724; }
+        .status-badge.archived { background: #e2e8f0; color: #4a5568; }
+        .status-badge.expired { background: #f8d7da; color: #721c24; }
+        
+        /* Read Progress Bar */
+        .read-progress {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
         }
         
-        .badge-admins {
-            background: rgba(243, 156, 18, 0.1);
-            color: var(--spice-gold);
+        .progress-bar-custom {
+            width: 60px;
+            height: 4px;
+            background: #e2e8f0;
+            border-radius: 2px;
+            overflow: hidden;
         }
         
-        .badge-specific {
-            background: rgba(231, 76, 60, 0.1);
-            color: #e74c3c;
+        .progress-fill {
+            height: 100%;
+            background: var(--spice-green);
+            border-radius: 2px;
         }
         
+        /* Empty State */
         .empty-state {
-            padding: 60px 20px;
             text-align: center;
-            background: white;
-            border-radius: 12px;
-            border: 2px dashed #e9ecef;
+            padding: 40px;
+            color: #a0aec0;
         }
         
-        .empty-state-icon {
-            font-size: 4rem;
-            color: #e9ecef;
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+        
+        /* Alert Messages */
+        .alert {
+            border-radius: 10px;
+            border-left-width: 4px;
             margin-bottom: 20px;
         }
         
-        .form-switch .form-check-input:checked {
-            background-color: var(--spice-purple);
-            border-color: var(--spice-purple);
+        .alert-success {
+            border-left-color: var(--spice-green);
+            background-color: #d4edda;
+            color: #155724;
         }
         
-        .table-hover tbody tr:hover {
-            background-color: rgba(184, 92, 56, 0.04);
+        .alert-warning {
+            border-left-color: var(--spice-gold);
+            background-color: #fff3cd;
+            color: #856404;
         }
         
-        .quick-action-btn {
-            padding: 20px 15px;
-            border-radius: 10px;
-            text-align: center;
-            transition: all 0.3s ease;
-            background: white;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
-            border: 1px solid #e9ecef;
-            text-decoration: none;
-            color: var(--spice-dark);
-            display: block;
+        .alert-info {
+            border-left-color: var(--spice-blue);
+            background-color: #d1ecf1;
+            color: #0c5460;
         }
         
-        .quick-action-btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 15px rgba(184, 92, 56, 0.15);
-            background: var(--spice-red);
-            color: white;
-            text-decoration: none;
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: relative;
+                min-height: auto;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .announcement-item {
+                flex-direction: column;
+            }
+            
+            .announcement-actions {
+                margin-top: 10px;
+            }
+            
+            .announcement-title {
+                flex-direction: column;
+                align-items: flex-start;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container-fluid">
         <div class="row">
-            <!-- Include Sidebar -->
-            <?php include 'sidebar.php'; ?>
-
+            <!-- Sidebar -->
+            <div class="col-md-2 p-0">
+                <?php include 'sidebar.php'; ?>
+            </div>
+            
             <!-- Main Content -->
-            <div class="col-md-10 p-4" style="background: #f8f9fa; min-height: 100vh;">
-                <!-- Header - Same as dashboard -->
-                <div class="dashboard-header">
+            <div class="col-md-10 p-4 main-content">
+                <!-- Page Header -->
+                <div class="page-header">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h2 class="mb-2" style="color: var(--spice-dark);">
+                            <h2 class="mb-2">
                                 <i class="fas fa-bullhorn me-2" style="color: var(--spice-purple);"></i>
-                                Send Announcement
+                                Announcements Center
                             </h2>
                             <p class="text-muted mb-0">
-                                <i class="fas fa-info-circle me-1"></i> 
-                                Welcome back, <strong><?php echo htmlspecialchars($admin['username']); ?></strong>! 
-                                Broadcast important messages to your users.
+                                <i class="fas fa-clock me-1"></i> 
+                                Create and manage platform-wide announcements for users
                             </p>
                         </div>
-                        <div style="background: linear-gradient(135deg, var(--spice-purple), #8e44ad); color: white; padding: 10px 20px; border-radius: 25px; font-weight: 500; box-shadow: 0 4px 10px rgba(155, 89, 182, 0.3);" class="time-display">
-                            <i class="fas fa-calendar-alt me-1"></i> <?php echo $today; ?>
-                            <span class="mx-2">|</span>
-                            <i class="fas fa-clock me-1"></i> <?php echo $current_time; ?>
+                        <div>
+                            <button class="btn btn-outline-primary me-2" onclick="window.location.reload()">
+                                <i class="fas fa-sync-alt me-2"></i> Refresh
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <?php if(isset($success_msg)): ?>
+                
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <i class="fas fa-bullhorn"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $total_announcements; ?></h3>
+                            <p>Total Announcements</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $active_announcements; ?></h3>
+                            <p>Active Now</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon red">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $important_announcements; ?></h3>
+                            <p>Important</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <i class="fas fa-hourglass-end"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3><?php echo $expired_announcements; ?></h3>
+                            <p>Expired</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Success/Error Messages -->
+                <?php if(isset($success_message)): ?>
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="fas fa-check-circle me-2"></i> <?php echo $success_msg; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <i class="fas fa-check-circle me-2"></i>
+                        <?php echo $success_message; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
                 
-                <?php if(isset($error_msg)): ?>
+                <?php if(isset($error_message)): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="fas fa-exclamation-circle me-2"></i> <?php echo $error_msg; ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        <?php echo $error_message; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
-
-                <!-- Quick Stats -->
-                <div class="row mb-4">
-                    <div class="col-md-2">
-                        <div class="stat-card all">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="stat-value"><?php echo $total_users; ?></div>
-                                    <div class="stat-label">Total Users</div>
-                                    <div class="small opacity-75 mt-2">
-                                        <i class="fas fa-user me-1"></i> 
-                                        <?php echo $total_customers; ?> customers
-                                        <br>
-                                        <i class="fas fa-tractor me-1"></i> 
-                                        <?php echo $total_farmers; ?> farmers
-                                    </div>
-                                </div>
-                                <div class="display-6 opacity-50">
-                                    <i class="fas fa-users"></i>
-                                </div>
-                            </div>
-                        </div>
+                
+                <!-- Send Announcement Form -->
+                <div class="announcement-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-paper-plane"></i> Create New Announcement</h4>
                     </div>
                     
-                    <div class="col-md-2">
-                        <div class="stat-card customers">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="stat-value"><?php echo $total_customers; ?></div>
-                                    <div class="stat-label">Customers</div>
-                                    <div class="small opacity-75 mt-2">
-                                        <i class="fas fa-shopping-cart me-1"></i> 
-                                        Can receive announcements
+                    <div class="send-announcement-form">
+                        <form method="POST" action="<?php echo $_SERVER['PHP_SELF']; ?>" id="announcementForm">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Title <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" name="title" placeholder="e.g., System Maintenance, New Feature Launch" required>
                                     </div>
-                                </div>
-                                <div class="display-6 opacity-50">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <div class="stat-card farmers">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="stat-value"><?php echo $total_farmers; ?></div>
-                                    <div class="stat-label">Farmers</div>
-                                    <div class="small opacity-75 mt-2">
-                                        <i class="fas fa-tractor me-1"></i> 
-                                        Can receive announcements
-                                    </div>
-                                </div>
-                                <div class="display-6 opacity-50">
-                                    <i class="fas fa-tractor"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <div class="stat-card admins">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="stat-value"><?php echo $total_admins; ?></div>
-                                    <div class="stat-label">Admins</div>
-                                    <div class="small opacity-75 mt-2">
-                                        <i class="fas fa-user-shield me-1"></i> 
-                                        System administrators
-                                    </div>
-                                </div>
-                                <div class="display-6 opacity-50">
-                                    <i class="fas fa-user-shield"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <div class="stat-card announcements">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <div class="stat-value"><?php echo $total_announcements; ?></div>
-                                    <div class="stat-label">Total Sent</div>
-                                    <div class="small opacity-75 mt-2">
-                                        <i class="fas fa-calendar-day me-1"></i> 
-                                        <?php echo $today_announcements; ?> today
-                                        <br>
-                                        <i class="fas fa-exclamation me-1"></i> 
-                                        <?php echo $important_announcements; ?> important
-                                    </div>
-                                </div>
-                                <div class="display-6 opacity-50">
-                                    <i class="fas fa-bullhorn"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <!-- Empty card or additional stat -->
-                    </div>
-                </div>
-
-                <!-- Main Content Area -->
-                <div class="row">
-                    <!-- Compose Announcement -->
-                    <div class="col-md-8">
-                        <div class="analytics-card">
-                            <h5 class="mb-4">
-                                <i class="fas fa-edit me-2"></i>Compose Announcement
-                            </h5>
-                            
-                            <form method="POST" action="" id="announcementForm">
-                                <div class="mb-3">
-                                    <label class="form-label">Announcement Title <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="title" placeholder="Enter announcement title" 
-                                           value="<?php echo isset($_POST['title']) ? htmlspecialchars($_POST['title']) : ''; ?>" required>
                                 </div>
                                 
-                                <div class="mb-3">
-                                    <label class="form-label">Message Content <span class="text-danger">*</span></label>
-                                    <textarea class="form-control" name="message" rows="6" placeholder="Type your announcement message here..." required><?php echo isset($_POST['message']) ? htmlspecialchars($_POST['message']) : ''; ?></textarea>
-                                    <div class="form-text">This message will be sent to all selected recipients.</div>
-                                </div>
-                                
-                                <div class="row mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Target Audience <span class="text-danger">*</span></label>
-                                        <select class="form-select" id="targetRoles" name="target_roles" required>
-                                            <option value="">Select target audience</option>
-                                            <option value="all" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'all') ? 'selected' : ''; ?>>All Users (<?php echo $total_users; ?>)</option>
-                                            <option value="customers" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'customers') ? 'selected' : ''; ?>>Customers Only (<?php echo $total_customers; ?>)</option>
-                                            <option value="farmers" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'farmers') ? 'selected' : ''; ?>>Farmers Only (<?php echo $total_farmers; ?>)</option>
-                                            <option value="admins" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'admins') ? 'selected' : ''; ?>>Admins Only (<?php echo $total_admins; ?>)</option>
-                                            <option value="specific" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'specific') ? 'selected' : ''; ?>>Specific User</option>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Announcement Type <span class="text-danger">*</span></label>
+                                        <select class="form-select" name="announcement_type" required>
+                                            <?php foreach($announcement_types as $type): ?>
+                                                <option value="<?php echo $type; ?>"><?php echo ucfirst($type); ?></option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <div class="col-md-6">
+                                </div>
+                                
+                                <div class="col-md-12">
+                                    <div class="form-group">
+                                        <label class="form-label">Message <span class="text-danger">*</span></label>
+                                        <textarea class="form-control" name="message" rows="4" placeholder="Enter your announcement message..." required></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label class="form-label">Target Audience <span class="text-danger">*</span></label>
+                                        <select class="form-select" name="target_roles" id="targetRoles" required>
+                                            <option value="all">All Users (<?php echo $total_users; ?> total)</option>
+                                            <option value="customers">Customers Only (<?php echo $total_customers; ?>)</option>
+                                            <option value="farmers">Farmers Only (<?php echo $total_farmers; ?>)</option>
+                                            <option value="admins">Admins Only (<?php echo $total_admins; ?>)</option>
+                                            <option value="specific">Specific User</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="form-group">
                                         <label class="form-label">Expiration Date (Optional)</label>
-                                        <input type="date" class="form-control" name="expires_at" 
-                                               value="<?php echo isset($_POST['expires_at']) ? htmlspecialchars($_POST['expires_at']) : ''; ?>" 
-                                               min="<?php echo date('Y-m-d'); ?>">
-                                        <div class="form-text">Announcement will expire after this date.</div>
+                                        <input type="date" class="form-control" name="expires_at" min="<?php echo date('Y-m-d'); ?>">
+                                        <small class="text-muted">Announcement will auto-archive after this date</small>
                                     </div>
                                 </div>
                                 
                                 <!-- Specific User Selection -->
-                                <div class="mb-3" id="specificUserDiv" style="display: <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'specific') ? 'block' : 'none'; ?>;">
-                                    <label class="form-label">Select Specific User <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="target_user_id" id="targetUserSelect" <?php echo (isset($_POST['target_roles']) && $_POST['target_roles'] == 'specific') ? 'required' : ''; ?>>
-                                        <option value="">Select user</option>
-                                        <?php 
-                                        $all_users->data_seek(0);
-                                        while($user = $all_users->fetch_assoc()): 
-                                            $selected = (isset($_POST['target_user_id']) && $_POST['target_user_id'] == $user['user_id']) ? 'selected' : '';
-                                        ?>
-                                        <option value="<?php echo $user['user_id']; ?>" <?php echo $selected; ?>>
-                                            <?php echo htmlspecialchars($user['name']); ?> (<?php echo $user['email']; ?>) - <?php echo ucfirst($user['role']); ?>
-                                        </option>
-                                        <?php endwhile; ?>
-                                    </select>
+                                <div class="col-md-12" id="specificUserDiv" style="display: none;">
+                                    <div class="form-group">
+                                        <label class="form-label">Select Specific User <span class="text-danger">*</span></label>
+                                        <select class="form-select" name="target_user_id" id="targetUserSelect">
+                                            <option value="">Select a user</option>
+                                            <?php 
+                                            $all_users->data_seek(0);
+                                            while($user = $all_users->fetch_assoc()): 
+                                            ?>
+                                                <option value="<?php echo $user['user_id']; ?>">
+                                                    <?php echo htmlspecialchars($user['name']); ?> (<?php echo $user['email']; ?>) - <?php echo ucfirst($user['role']); ?>
+                                                </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
                                 </div>
                                 
-                                <div class="mb-4">
-                                    <div class="form-check form-switch">
-                                        <input class="form-check-input" type="checkbox" id="isImportant" name="is_important" value="1" 
-                                               <?php echo (isset($_POST['is_important']) && $_POST['is_important'] == 1) ? 'checked' : ''; ?>>
-                                        <label class="form-check-label fw-bold" for="isImportant">
-                                            <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
-                                            Mark as Important Announcement
+                                <div class="col-md-12">
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" name="is_important" id="isImportant" value="1">
+                                        <label class="form-check-label" for="isImportant">
+                                            <i class="fas fa-exclamation-triangle text-warning me-1"></i>
+                                            Mark as Important (will be highlighted for users)
                                         </label>
                                     </div>
-                                    <div class="form-text text-warning">
-                                        Important announcements will be highlighted to users and marked with a warning icon.
-                                    </div>
                                 </div>
                                 
-                                <div class="d-flex justify-content-between">
-                                    <button type="button" class="btn btn-outline-secondary" onclick="clearForm()">
-                                        <i class="fas fa-times me-2"></i> Clear Form
-                                    </button>
-                                    <button type="submit" name="send_announcement" class="btn btn-announce">
+                                <div class="col-md-12">
+                                    <button type="submit" name="send_announcement" class="btn btn-send">
                                         <i class="fas fa-paper-plane me-2"></i> Send Announcement
                                     </button>
                                 </div>
-                            </form>
-                        </div>
-                    </div>
-                    
-                    <!-- Statistics & Recent Announcements -->
-                    <div class="col-md-4">
-                        <!-- Quick Tips -->
-                        <div class="analytics-card mb-4">
-                            <h6 class="mb-3">
-                                <i class="fas fa-lightbulb me-2"></i>Quick Tips
-                            </h6>
-                            <div class="alert alert-info mb-3">
-                                <i class="fas fa-info-circle me-2"></i>
-                                <strong>Best Practices:</strong>
-                                <ul class="mb-0 mt-2 small">
-                                    <li>Keep announcements concise and clear</li>
-                                    <li>Use specific, attention-grabbing titles</li>
-                                    <li>Target the right audience</li>
-                                    <li>Set expiration for time-sensitive info</li>
-                                </ul>
                             </div>
-                            
-                            <div class="alert alert-warning mb-3">
-                                <i class="fas fa-exclamation-triangle me-2"></i>
-                                <strong>Important Notes:</strong>
-                                <ul class="mb-0 mt-2 small">
-                                    <li>Test important announcements first</li>
-                                    <li>Avoid sending too frequently</li>
-                                    <li>Check spelling and grammar</li>
-                                    <li>Archive old announcements regularly</li>
-                                </ul>
-                            </div>
-                        </div>
-                        
-                        <!-- Recent Announcements -->
-                        <div class="analytics-card">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="mb-0">
-                                    <i class="fas fa-history me-2"></i>Recent Announcements
-                                </h6>
-                                <a href="view_notifications.php" class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-external-link-alt me-1"></i> View All
-                                </a>
-                            </div>
-                            
-                            <?php if($recent_announcements->num_rows > 0): ?>
-                            <div class="list-group list-group-flush">
-                                <?php while($ann = $recent_announcements->fetch_assoc()): 
-                                    $badge_class = 'badge-' . $ann['target_roles'];
-                                    $target_count = 0;
-                                    
-                                    // Calculate target count
-                                    switch($ann['target_roles']) {
-                                        case 'all': $target_count = $total_users; break;
-                                        case 'customers': $target_count = $total_customers; break;
-                                        case 'farmers': $target_count = $total_farmers; break;
-                                        case 'admins': $target_count = $total_admins; break;
-                                        case 'specific': $target_count = 1; break;
-                                    }
-                                ?>
-                                <div class="list-group-item border-0 px-0 py-3">
-                                    <div class="d-flex align-items-start">
-                                        <div class="flex-shrink-0">
-                                            <?php if($ann['is_important']): ?>
-                                                <i class="fas fa-exclamation-triangle text-warning"></i>
-                                            <?php else: ?>
-                                                <i class="fas fa-bullhorn text-muted"></i>
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="flex-grow-1 ms-3">
-                                            <div class="fw-bold small"><?php echo htmlspecialchars($ann['title']); ?></div>
-                                            <div class="d-flex justify-content-between align-items-center mt-1">
-                                                <span class="target-badge <?php echo $badge_class; ?>">
-                                                    <?php echo ucfirst($ann['target_roles']); ?>
-                                                </span>
-                                                <small class="text-muted">
-                                                    <?php if($target_count > 0): ?>
-                                                        <?php echo $ann['read_count']; ?>/<?php echo $target_count; ?> read
-                                                    <?php endif; ?>
-                                                </small>
-                                            </div>
-                                            <small class="text-muted">
-                                                <i class="far fa-clock me-1"></i>
-                                                <?php echo time_ago($ann['created_at']); ?>
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                                <?php endwhile; ?>
-                            </div>
-                            <?php else: ?>
-                            <div class="text-center py-3">
-                                <i class="fas fa-bullhorn fa-2x text-muted mb-3"></i>
-                                <p class="text-muted mb-0">No announcements sent yet</p>
-                                <p class="text-muted small">Send your first announcement!</p>
-                            </div>
-                            <?php endif; ?>
-                        </div>
+                        </form>
                     </div>
                 </div>
                 
-                <!-- User Breakdown -->
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <div class="analytics-card">
-                            <h5 class="mb-4">
-                                <i class="fas fa-users me-2"></i>User Breakdown
-                            </h5>
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="text-center p-4 rounded" style="background: rgba(155, 89, 182, 0.1);">
-                                        <div class="fw-bold fs-3" style="color: var(--spice-purple);"><?php echo $total_users; ?></div>
-                                        <div class="text-muted">Total Users</div>
-                                        <small class="text-muted">All platform users</small>
+                <!-- Announcements List -->
+                <div class="announcement-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-history"></i> Announcement History</h4>
+                        <div>
+                            <span class="me-2"><i class="fas fa-circle text-danger"></i> Important</span>
+                            <span class="me-2"><i class="fas fa-circle text-success"></i> Active</span>
+                            <span><i class="fas fa-circle text-secondary"></i> Archived</span>
+                        </div>
+                    </div>
+                    
+                    <?php if($announcements_list && $announcements_list->num_rows > 0): ?>
+                        <?php while($announcement = $announcements_list->fetch_assoc()): 
+                            $type_class = $announcement['announcement_type'] ?? 'general';
+                            $target_class = 'badge-' . $announcement['target_roles'];
+                            
+                            // Check if expired
+                            $is_expired = false;
+                            if($announcement['expires_at'] && strtotime($announcement['expires_at']) < time()) {
+                                $is_expired = true;
+                            }
+                            
+                            // Determine status class
+                            $status_class = 'active';
+                            $status_text = 'Active';
+                            if($announcement['status'] == 'archived') {
+                                $status_class = 'archived';
+                                $status_text = 'Archived';
+                            } elseif($is_expired) {
+                                $status_class = 'expired';
+                                $status_text = 'Expired';
+                            }
+                            
+                            // Calculate read percentage
+                            $read_percent = 0;
+                            if($announcement['total_recipients'] > 0) {
+                                $read_percent = round(($announcement['read_count'] / $announcement['total_recipients']) * 100);
+                            }
+                        ?>
+                            <div class="announcement-item 
+                                <?php echo $type_class; ?> 
+                                <?php echo $announcement['is_important'] ? 'important' : ''; ?> 
+                                <?php echo $announcement['status']; ?>
+                                <?php echo $is_expired ? 'archived' : ''; ?>">
+                                
+                                <div class="announcement-icon <?php echo $type_class; ?>">
+                                    <?php
+                                    switch($type_class) {
+                                        case 'maintenance': echo '<i class="fas fa-tools"></i>'; break;
+                                        case 'promotion': echo '<i class="fas fa-tag"></i>'; break;
+                                        case 'update': echo '<i class="fas fa-sync-alt"></i>'; break;
+                                        case 'event': echo '<i class="fas fa-calendar-alt"></i>'; break;
+                                        case 'alert': echo '<i class="fas fa-exclamation"></i>'; break;
+                                        default: echo '<i class="fas fa-bullhorn"></i>';
+                                    }
+                                    ?>
+                                </div>
+                                
+                                <div class="announcement-content">
+                                    <div class="announcement-title">
+                                        <?php echo htmlspecialchars($announcement['title']); ?>
+                                        <?php if($announcement['is_important']): ?>
+                                            <span class="badge bg-danger">Important</span>
+                                        <?php endif; ?>
+                                        <span class="type-badge type-<?php echo $type_class; ?>">
+                                            <?php echo ucfirst($type_class); ?>
+                                        </span>
+                                        <span class="status-badge status-<?php echo $status_class; ?>">
+                                            <?php echo $status_text; ?>
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="announcement-message">
+                                        <?php echo nl2br(htmlspecialchars($announcement['message'])); ?>
+                                    </div>
+                                    
+                                    <div class="announcement-meta">
+                                        <span>
+                                            <i class="fas fa-users"></i> 
+                                            <span class="target-badge <?php echo $target_class; ?>">
+                                                <?php echo ucfirst($announcement['target_roles']); ?>
+                                            </span>
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-user"></i> 
+                                            By: <?php echo htmlspecialchars($announcement['admin_name'] ?: 'Admin'); ?>
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-clock"></i> 
+                                            <?php echo date('M d, Y h:i A', strtotime($announcement['created_at'])); ?>
+                                        </span>
+                                        <?php if($announcement['expires_at']): ?>
+                                            <span>
+                                                <i class="fas fa-hourglass-end"></i> 
+                                                Expires: <?php echo date('M d, Y', strtotime($announcement['expires_at'])); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                        <?php if($announcement['total_recipients'] > 0): ?>
+                                            <span class="read-progress">
+                                                <i class="fas fa-envelope-open-text"></i>
+                                                <span><?php echo $read_percent; ?>% read</span>
+                                                <div class="progress-bar-custom">
+                                                    <div class="progress-fill" style="width: <?php echo $read_percent; ?>%"></div>
+                                                </div>
+                                                <small class="text-muted">(<?php echo $announcement['read_count']; ?>/<?php echo $announcement['total_recipients']; ?>)</small>
+                                            </span>
+                                        <?php endif; ?>
                                     </div>
                                 </div>
-                                <div class="col-md-3">
-                                    <div class="text-center p-4 rounded" style="background: rgba(52, 152, 219, 0.1);">
-                                        <div class="fw-bold fs-3" style="color: var(--spice-blue);"><?php echo $total_customers; ?></div>
-                                        <div class="text-muted">Customers</div>
-                                        <small class="text-muted">Spice buyers</small>
-                                    </div>
+                                
+                                <div class="announcement-actions">
+                                    <?php if($announcement['status'] == 'active' && !$is_expired): ?>
+                                        <a href="?archive=<?php echo $announcement['announcement_id']; ?>" class="btn btn-sm btn-outline-warning" title="Archive" onclick="return confirm('Archive this announcement?')">
+                                            <i class="fas fa-archive"></i>
+                                        </a>
+                                    <?php elseif($announcement['status'] == 'archived' || $is_expired): ?>
+                                        <a href="?activate=<?php echo $announcement['announcement_id']; ?>" class="btn btn-sm btn-outline-success" title="Activate" onclick="return confirm('Activate this announcement?')">
+                                            <i class="fas fa-sync-alt"></i>
+                                        </a>
+                                    <?php endif; ?>
+                                    <a href="?delete=<?php echo $announcement['announcement_id']; ?>" class="btn btn-sm btn-outline-danger" title="Delete" onclick="return confirm('Delete this announcement permanently?')">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
                                 </div>
-                                <div class="col-md-3">
-                                    <div class="text-center p-4 rounded" style="background: rgba(39, 174, 96, 0.1);">
-                                        <div class="fw-bold fs-3" style="color: var(--spice-green);"><?php echo $total_farmers; ?></div>
-                                        <div class="text-muted">Farmers</div>
-                                        <small class="text-muted">Spice producers</small>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="text-center p-4 rounded" style="background: rgba(243, 156, 18, 0.1);">
-                                        <div class="fw-bold fs-3" style="color: var(--spice-gold);"><?php echo $total_admins; ?></div>
-                                        <div class="text-muted">Admins</div>
-                                        <small class="text-muted">System administrators</small>
-                                    </div>
-                                </div>
+                            </div>
+                        <?php endwhile; ?>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <i class="fas fa-bullhorn"></i>
+                            <p>No announcements yet</p>
+                            <p class="small text-muted">Create your first announcement using the form above.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <!-- Audience Info -->
+                <div class="announcement-section">
+                    <div class="section-header">
+                        <h4><i class="fas fa-users"></i> Audience Overview</h4>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center p-3 rounded" style="background: rgba(155, 89, 182, 0.1);">
+                                <div class="fw-bold fs-3" style="color: var(--spice-purple);"><?php echo $total_users; ?></div>
+                                <div class="text-muted">Total Active Users</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 rounded" style="background: rgba(52, 152, 219, 0.1);">
+                                <div class="fw-bold fs-3" style="color: var(--spice-blue);"><?php echo $total_customers; ?></div>
+                                <div class="text-muted">Customers</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 rounded" style="background: rgba(39, 174, 96, 0.1);">
+                                <div class="fw-bold fs-3" style="color: var(--spice-green);"><?php echo $total_farmers; ?></div>
+                                <div class="text-muted">Farmers</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center p-3 rounded" style="background: rgba(243, 156, 18, 0.1);">
+                                <div class="fw-bold fs-3" style="color: var(--spice-gold);"><?php echo $total_admins; ?></div>
+                                <div class="text-muted">Admins</div>
                             </div>
                         </div>
                     </div>
@@ -721,7 +938,7 @@ $current_time = date('h:i A');
             </div>
         </div>
     </div>
-
+    
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -736,43 +953,6 @@ $current_time = date('h:i A');
                     $('#targetUserSelect').prop('required', false);
                 }
             });
-            
-            // Initialize based on current selection (for form repopulation)
-            if ($('#targetRoles').val() === 'specific') {
-                $('#specificUserDiv').show();
-                $('#targetUserSelect').prop('required', true);
-            }
-            
-            // Character counter for message
-            $('textarea[name="message"]').on('input', function() {
-                var length = $(this).val().length;
-                $('#charCount').text(length + ' characters');
-            });
-            
-            // Auto-update time every minute
-            function updateTime() {
-                const now = new Date();
-                const options = { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                };
-                const dateStr = now.toLocaleDateString('en-US', options);
-                const timeStr = now.toLocaleTimeString('en-US', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: true 
-                });
-                
-                $('.time-display').html(`
-                    <i class="fas fa-calendar-alt me-1"></i> ${dateStr}
-                    <span class="mx-2">|</span>
-                    <i class="fas fa-clock me-1"></i> ${timeStr}
-                `);
-            }
-            
-            setInterval(updateTime, 60000);
             
             // Form validation
             $('#announcementForm').submit(function(e) {
@@ -797,70 +977,12 @@ $current_time = date('h:i A');
                 
                 return true;
             });
+            
+            // Auto-hide alerts after 5 seconds
+            setTimeout(function() {
+                $('.alert').fadeOut('slow');
+            }, 5000);
         });
-        
-        function clearForm() {
-            document.getElementById('announcementForm').reset();
-            $('#specificUserDiv').hide();
-            $('#targetUserSelect').prop('required', false);
-        }
     </script>
-    
-    <?php
-    // Helper function for time ago
-    function time_ago($timestamp) {
-        $time_ago = strtotime($timestamp);
-        $current_time = time();
-        $time_difference = $current_time - $time_ago;
-        $seconds = $time_difference;
-        
-        $minutes = round($seconds / 60);
-        $hours = round($seconds / 3600);
-        $days = round($seconds / 86400);
-        $weeks = round($seconds / 604800);
-        $months = round($seconds / 2629440);
-        $years = round($seconds / 31553280);
-        
-        if ($seconds <= 60) {
-            return "Just now";
-        } elseif ($minutes <= 60) {
-            if ($minutes == 1) {
-                return "1 minute ago";
-            } else {
-                return "$minutes minutes ago";
-            }
-        } elseif ($hours <= 24) {
-            if ($hours == 1) {
-                return "1 hour ago";
-            } else {
-                return "$hours hours ago";
-            }
-        } elseif ($days <= 7) {
-            if ($days == 1) {
-                return "Yesterday";
-            } else {
-                return "$days days ago";
-            }
-        } elseif ($weeks <= 4.3) {
-            if ($weeks == 1) {
-                return "1 week ago";
-            } else {
-                return "$weeks weeks ago";
-            }
-        } elseif ($months <= 12) {
-            if ($months == 1) {
-                return "1 month ago";
-            } else {
-                return "$months months ago";
-            }
-        } else {
-            if ($years == 1) {
-                return "1 year ago";
-            } else {
-                return "$years years ago";
-            }
-        }
-    }
-    ?>
 </body>
 </html>

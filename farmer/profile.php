@@ -26,7 +26,7 @@ $update_success = false;
 $update_error = false;
 $error_message = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (isset($_POST['update_profile'])) {
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
     $phone = trim($_POST['phone']);
@@ -107,6 +107,14 @@ $password_success = false;
 $password_error = false;
 $password_message = '';
 
+// List of common passwords to avoid
+$common_passwords = [
+    'password', 'password123', '123456', '12345678', '123456789', '12345', '1234567890',
+    'qwerty', 'qwerty123', 'admin', 'admin123', 'letmein', 'welcome', 'monkey', 'dragon',
+    'football', 'baseball', 'iloveyou', 'trustno1', 'abc123', 'password1', 'passw0rd',
+    'zaq1zaq1', 'asdfgh', 'qwertyuiop', 'qwertyui', 'q1w2e3r4', '1qaz2wsx', '1q2w3e4r'
+];
+
 if (isset($_POST['change_password'])) {
     $current_password = $_POST['current_password'];
     $new_password = $_POST['new_password'];
@@ -115,7 +123,23 @@ if (isset($_POST['change_password'])) {
     // Verify current password
     if (password_verify($current_password, $farmer['password'])) {
         if ($new_password === $confirm_password) {
-            if (strlen($new_password) >= 6) {
+            
+            // Requirement 1: At least 6 characters
+            if (strlen($new_password) < 6) {
+                $password_error = true;
+                $password_message = "Password must be at least 6 characters long.";
+            }
+            // Requirement 2: Should include letters and numbers
+            elseif (!preg_match('/[A-Za-z]/', $new_password) || !preg_match('/[0-9]/', $new_password)) {
+                $password_error = true;
+                $password_message = "Password must contain both letters and numbers.";
+            }
+            // Requirement 3: Avoid common passwords
+            elseif (in_array(strtolower($new_password), $common_passwords)) {
+                $password_error = true;
+                $password_message = "This password is too common. Please choose a stronger password.";
+            }
+            else {
                 $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
                 $password_query = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
                 $password_query->bind_param("si", $hashed_password, $farmer_id);
@@ -123,13 +147,12 @@ if (isset($_POST['change_password'])) {
                 if ($password_query->execute()) {
                     $password_success = true;
                     $password_message = "Password changed successfully!";
+                    // Refresh farmer data
+                    $farmer = $conn->query("SELECT * FROM users WHERE user_id = $farmer_id")->fetch_assoc();
                 } else {
                     $password_error = true;
                     $password_message = "Error updating password. Please try again.";
                 }
-            } else {
-                $password_error = true;
-                $password_message = "New password must be at least 6 characters long.";
             }
         } else {
             $password_error = true;
@@ -460,6 +483,9 @@ $conn->close();
             border-radius: 8px;
             border: none;
             padding: 15px 20px;
+            margin-bottom: 20px;
+            position: relative;
+            z-index: 1000;
         }
         
         .alert-success {
@@ -486,6 +512,35 @@ $conn->close();
             font-size: 4rem;
             color: #e9ecef;
             margin-bottom: 20px;
+        }
+        
+        .form-actions {
+            border-top: 1px solid #e9ecef;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+        
+        .alert-center {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            animation: slideDown 0.5s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                top: -100px;
+                opacity: 0;
+            }
+            to {
+                top: 20px;
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -525,6 +580,12 @@ $conn->close();
                         <a class="nav-link" href="customer_requests.php">
                             <i class="fas fa-inbox me-2"></i>
                             Customer Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="earnings.php">
+                            <i class="fas fa-wallet me-2"></i>
+                            Earnings Monitor
                         </a>
                     </li>
                     <li class="nav-item">
@@ -575,9 +636,9 @@ $conn->close();
                     </div>
                 </div>
 
-                <!-- Success/Error Messages -->
+                <!-- Success/Error Messages - Center of page -->
                 <?php if($update_success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show alert-center" role="alert">
                     <i class="fas fa-check-circle me-2"></i>
                     Profile updated successfully!
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -585,7 +646,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($update_error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show alert-center" role="alert">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     <?php echo $error_message; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -593,7 +654,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($password_success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show alert-center" role="alert">
                     <i class="fas fa-check-circle me-2"></i>
                     <?php echo $password_message; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -601,7 +662,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($password_error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show alert-center" role="alert">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     <?php echo $password_message; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -723,6 +784,8 @@ $conn->close();
                                 <!-- Profile Information Tab -->
                                 <div class="tab-pane fade show active" id="profile" role="tabpanel">
                                     <form method="POST" enctype="multipart/form-data">
+                                        <input type="hidden" name="update_profile" value="1">
+                                        
                                         <div class="row mb-4">
                                             <div class="col-md-6">
                                                 <div class="mb-3">
@@ -775,23 +838,21 @@ $conn->close();
                                             </div>
                                         </div>
                                         
-                                        <div class="row">
-                                            <div class="col-md-12">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <div>
-                                                        <span class="status-badge badge-<?php echo strtolower($farmer['status']); ?>">
-                                                            <i class="fas fa-circle me-1"></i> 
-                                                            Account Status: <?php echo $farmer['status']; ?>
-                                                        </span>
-                                                        <small class="text-muted ms-3">
-                                                            <i class="fas fa-calendar me-1"></i> 
-                                                            Member since: <?php echo date('M d, Y', strtotime($farmer['created_at'])); ?>
-                                                        </small>
-                                                    </div>
-                                                    <button type="submit" class="btn btn-primary">
-                                                        <i class="fas fa-save me-2"></i> Save Changes
-                                                    </button>
+                                        <div class="form-actions">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <span class="status-badge badge-<?php echo strtolower($farmer['status']); ?>">
+                                                        <i class="fas fa-circle me-1"></i> 
+                                                        Account Status: <?php echo $farmer['status']; ?>
+                                                    </span>
+                                                    <small class="text-muted ms-3">
+                                                        <i class="fas fa-calendar me-1"></i> 
+                                                        Member since: <?php echo date('M d, Y', strtotime($farmer['created_at'])); ?>
+                                                    </small>
                                                 </div>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-save me-2"></i> Save Profile Changes
+                                                </button>
                                             </div>
                                         </div>
                                     </form>
@@ -808,8 +869,9 @@ $conn->close();
                                                     <h6 class="mb-2"><i class="fas fa-shield-alt me-2"></i> Password Requirements</h6>
                                                     <p class="mb-0 small text-muted">
                                                         • Must be at least 6 characters long<br>
-                                                        • Should include letters and numbers<br>
-                                                        • Avoid using common passwords
+                                                        • Must include both letters and numbers<br>
+                                                        • Cannot be a commonly used password<br>
+                                                        • Avoid using personal information
                                                     </p>
                                                 </div>
                                             </div>
@@ -851,25 +913,39 @@ $conn->close();
                                             </div>
                                         </div>
                                         
-                                        <div class="row">
+                                        <!-- Password Strength Indicator -->
+                                        <div class="row mb-3">
                                             <div class="col-md-12">
-                                                <div class="d-flex justify-content-between">
-                                                    <div>
-                                                        <small class="text-muted">
-                                                            <i class="fas fa-info-circle me-1"></i>
-                                                            Last changed: <?php 
-                                                                if ($farmer['updated_at'] != $farmer['created_at']) {
-                                                                    echo date('M d, Y', strtotime($farmer['updated_at']));
-                                                                } else {
-                                                                    echo 'Never changed';
-                                                                }
-                                                            ?>
-                                                        </small>
-                                                    </div>
-                                                    <button type="submit" class="btn btn-primary">
-                                                        <i class="fas fa-key me-2"></i> Change Password
-                                                    </button>
+                                                <div class="progress" style="height: 5px;">
+                                                    <div class="progress-bar" id="passwordStrength" style="width: 0%;"></div>
                                                 </div>
+                                                <small class="text-muted" id="passwordStrengthText">Enter password to check strength</small>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="form-actions">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-info-circle me-1"></i>
+                                                        Last changed: 
+                                                        <?php 
+                                                        // Check if updated_at exists in the array and is valid
+                                                        if (isset($farmer['updated_at']) && !empty($farmer['updated_at']) && $farmer['updated_at'] != '0000-00-00 00:00:00') {
+                                                            if ($farmer['updated_at'] != $farmer['created_at']) {
+                                                                echo date('M d, Y', strtotime($farmer['updated_at']));
+                                                            } else {
+                                                                echo 'Never changed';
+                                                            }
+                                                        } else {
+                                                            echo 'Never changed';
+                                                        }
+                                                        ?>
+                                                    </small>
+                                                </div>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fas fa-key me-2"></i> Change Password
+                                                </button>
                                             </div>
                                         </div>
                                     </form>
@@ -1057,6 +1133,48 @@ $conn->close();
             }
         }
         
+        // Password strength checker
+        document.getElementById('new_password').addEventListener('input', function() {
+            const password = this.value;
+            const strengthBar = document.getElementById('passwordStrength');
+            const strengthText = document.getElementById('passwordStrengthText');
+            
+            let strength = 0;
+            let message = '';
+            
+            // Check length
+            if (password.length >= 6) strength += 25;
+            
+            // Check for letters
+            if (/[A-Za-z]/.test(password)) strength += 25;
+            
+            // Check for numbers
+            if (/[0-9]/.test(password)) strength += 25;
+            
+            // Check for special characters and mixed case (bonus)
+            if (/[^A-Za-z0-9]/.test(password)) strength += 15;
+            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength += 10;
+            
+            // Cap at 100
+            strength = Math.min(strength, 100);
+            
+            // Update progress bar
+            strengthBar.style.width = strength + '%';
+            
+            if (strength < 50) {
+                strengthBar.className = 'progress-bar bg-danger';
+                message = 'Weak password';
+            } else if (strength < 75) {
+                strengthBar.className = 'progress-bar bg-warning';
+                message = 'Medium strength password';
+            } else {
+                strengthBar.className = 'progress-bar bg-success';
+                message = 'Strong password';
+            }
+            
+            strengthText.textContent = message;
+        });
+        
         // Preview profile image before upload
         document.getElementById('profile_image').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -1081,46 +1199,6 @@ $conn->close();
                     }
                 }
                 reader.readAsDataURL(file);
-            }
-        });
-        
-        // Form validation
-        document.querySelector('form').addEventListener('submit', function(e) {
-            const passwordForm = document.querySelector('input[name="change_password"]');
-            
-            if (passwordForm) {
-                // Password change form validation
-                const newPassword = document.getElementById('new_password').value;
-                const confirmPassword = document.getElementById('confirm_password').value;
-                
-                if (newPassword !== confirmPassword) {
-                    e.preventDefault();
-                    alert('New password and confirm password do not match!');
-                    return;
-                }
-                
-                if (newPassword.length < 6) {
-                    e.preventDefault();
-                    alert('New password must be at least 6 characters long!');
-                    return;
-                }
-            } else {
-                // Profile update form validation
-                const name = document.getElementById('name').value.trim();
-                const email = document.getElementById('email').value.trim();
-                const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                
-                if (!name) {
-                    e.preventDefault();
-                    alert('Please enter your name!');
-                    return;
-                }
-                
-                if (!emailPattern.test(email)) {
-                    e.preventDefault();
-                    alert('Please enter a valid email address!');
-                    return;
-                }
             }
         });
         

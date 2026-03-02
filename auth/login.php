@@ -3,11 +3,13 @@ session_start();
 include "../config/db.php";
 
 $error = "";
+$email = isset($_COOKIE['remember_email']) ? $_COOKIE['remember_email'] : '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $role = trim($_POST['role']);
+    $remember = isset($_POST['remember']) ? true : false;
 
     // Admin login
     if ($role === "admin") {
@@ -23,6 +25,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['admin_name'] = $admin['username'];
                 $_SESSION['role'] = $admin['role'];
                 $_SESSION['is_admin'] = true;
+                
+                // Remember Me functionality
+                if ($remember) {
+                    setcookie('remember_email', $email, time() + (86400 * 30), "/"); // 30 days
+                } else {
+                    setcookie('remember_email', '', time() - 3600, "/"); // Delete cookie
+                }
+                
                 header("Location: ../admin/dashboard.php");
                 exit();
             } 
@@ -34,13 +44,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Customer/Farmer login
     else {
-        $result = $conn->query("SELECT * FROM users WHERE email='$email' AND role='$role' AND is_registered=1");
+        // Use prepared statement to prevent SQL injection
+        $query = $conn->prepare("SELECT * FROM users WHERE email = ? AND role = ? AND is_registered = 1");
+        $query->bind_param("ss", $email, $role);
+        $query->execute();
+        $result = $query->get_result();
+        
         if ($result && $result->num_rows > 0) {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 $_SESSION['user_id'] = $user['user_id'];
                 $_SESSION['role'] = $role;
                 $_SESSION['email'] = $email;
+                $_SESSION['user_name'] = $user['name'];
+                
+                // Remember Me functionality
+                if ($remember) {
+                    setcookie('remember_email', $email, time() + (86400 * 30), "/"); // 30 days
+                    // Store user role for auto-select
+                    setcookie('remember_role', $role, time() + (86400 * 30), "/");
+                } else {
+                    setcookie('remember_email', '', time() - 3600, "/");
+                    setcookie('remember_role', '', time() - 3600, "/");
+                }
+                
+                // Update last login time if you have the column
+                $update = $conn->prepare("UPDATE users SET last_notification_check = NOW() WHERE user_id = ?");
+                $update->bind_param("i", $user['user_id']);
+                $update->execute();
+                
                 if ($role == "farmer") {
                     header("Location: ../farmer/dashboard.php");
                 } else {
@@ -51,7 +83,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $error = "Incorrect password!";
             }
         } else {
-            $error = "User not found!";
+            $error = "User not found or not registered!";
         }
     }
 }
@@ -65,6 +97,53 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <title>SpiceCeylon - Login</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link rel="stylesheet" href="../assets/css/auth.css">
+<style>
+/* Additional styles for remember me and forgot password */
+.remember-forgot-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.remember-me {
+    display: flex;
+    align-items: center;
+}
+
+.remember-me input[type="checkbox"] {
+    width: auto;
+    margin-right: 8px;
+    accent-color: var(--spice-orange);
+}
+
+.remember-me label {
+    display: inline;
+    margin-bottom: 0;
+    cursor: pointer;
+}
+
+.forgot-password {
+    color: var(--spice-orange);
+    text-decoration: none;
+    transition: color 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.forgot-password:hover {
+    color: var(--spice-brown);
+    text-decoration: underline;
+}
+
+.forgot-password i {
+    font-size: 12px;
+}
+
+/* Auto-select role based on cookie */
+</style>
 </head>
 <body>
     <!-- Background Spice Icons -->
@@ -96,10 +175,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     </div>
                 <?php endif; ?>
 
+                <?php if(isset($_SESSION['reset_success'])): ?>
+                    <div class="message success">
+                        <i class="fas fa-check-circle"></i><?php echo $_SESSION['reset_success']; unset($_SESSION['reset_success']); ?>
+                    </div>
+                <?php endif; ?>
+
                 <form method="POST" action="">
                     <div class="input-group">
                         <label for="email"><i class="fas fa-envelope"></i>Email Address</label>
-                        <input type="email" name="email" id="email" placeholder="Enter your email" required>
+                        <input type="email" name="email" id="email" placeholder="Enter your email" 
+                               value="<?php echo htmlspecialchars($email); ?>" required>
                     </div>
                     
                     <div class="input-group password-toggle">
@@ -114,10 +200,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <label for="role"><i class="fas fa-user-tag"></i>Login As</label>
                         <select name="role" id="role" required>
                             <option value="">Select Role</option>
-                            <option value="customer">Customer</option>
-                            <option value="farmer">Farmer</option>
-                            <option value="admin">Admin</option>
+                            <option value="customer" <?php echo (isset($_COOKIE['remember_role']) && $_COOKIE['remember_role'] == 'customer') ? 'selected' : ''; ?>>Customer</option>
+                            <option value="farmer" <?php echo (isset($_COOKIE['remember_role']) && $_COOKIE['remember_role'] == 'farmer') ? 'selected' : ''; ?>>Farmer</option>
+                            <option value="admin" <?php echo (isset($_COOKIE['remember_role']) && $_COOKIE['remember_role'] == 'admin') ? 'selected' : ''; ?>>Admin</option>
                         </select>
+                    </div>
+                    
+                    <!-- Remember Me & Forgot Password Section -->
+                    <div class="remember-forgot-container">
+                        <div class="remember-me">
+                            <input type="checkbox" name="remember" id="remember" <?php echo isset($_COOKIE['remember_email']) ? 'checked' : ''; ?>>
+                            <label for="remember">Remember Me</label>
+                        </div>
+                        <a href="forgot_password.php" class="forgot-password">
+                            <i class="fas fa-key"></i> Forgot Password?
+                        </a>
                     </div>
                     
                     <button type="submit" class="btn-auth btn-login">
@@ -165,6 +262,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 this.style.boxShadow = 'none';
             });
         });
+
+        // Auto-hide messages after 5 seconds
+        setTimeout(function() {
+            const messages = document.querySelectorAll('.message');
+            messages.forEach(msg => {
+                msg.style.transition = 'opacity 0.5s';
+                msg.style.opacity = '0';
+                setTimeout(() => msg.style.display = 'none', 500);
+            });
+        }, 5000);
     </script>
 </body>
 </html>

@@ -90,40 +90,108 @@ if (isset($_GET['clear'])) {
     exit;
 }
 
-// Move to cart
+// Handle move all to cart
+if (isset($_POST['move_all_to_cart'])) {
+    // Get all wishlist items
+    $wishlist_query = "SELECT w.product_id, p.stock FROM wishlist w 
+                       JOIN products p ON w.product_id = p.product_id 
+                       WHERE w.customer_id = ? AND p.status = 'Approved' AND p.admin_approved = 'approved'";
+    $wishlist_stmt = $conn->prepare($wishlist_query);
+    $wishlist_stmt->bind_param("i", $user_id);
+    $wishlist_stmt->execute();
+    $wishlist_result = $wishlist_stmt->get_result();
+    
+    $moved_count = 0;
+    $out_of_stock_count = 0;
+    
+    while ($item = $wishlist_result->fetch_assoc()) {
+        if ($item['stock'] > 0) {
+            // Check if already in cart
+            $check_cart = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ? AND product_id = ?");
+            $check_cart->bind_param("ii", $user_id, $item['product_id']);
+            $check_cart->execute();
+            $cart_result = $check_cart->get_result();
+            
+            if ($cart_result->num_rows == 0) {
+                // Add to cart
+                $add_cart = $conn->prepare("INSERT INTO cart (customer_id, product_id, quantity) VALUES (?, ?, 1)");
+                $add_cart->bind_param("ii", $user_id, $item['product_id']);
+                $add_cart->execute();
+                $add_cart->close();
+                
+                // Remove from wishlist
+                $remove_wishlist = $conn->prepare("DELETE FROM wishlist WHERE customer_id = ? AND product_id = ?");
+                $remove_wishlist->bind_param("ii", $user_id, $item['product_id']);
+                $remove_wishlist->execute();
+                $remove_wishlist->close();
+                
+                $moved_count++;
+            }
+            $check_cart->close();
+        } else {
+            $out_of_stock_count++;
+        }
+    }
+    
+    if ($moved_count > 0) {
+        $_SESSION['success_message'] = $moved_count . " item(s) moved to cart successfully!";
+    }
+    if ($out_of_stock_count > 0) {
+        $_SESSION['info_message'] = $out_of_stock_count . " item(s) were out of stock and remain in wishlist.";
+    }
+    
+    $wishlist_stmt->close();
+    header("Location: wishlist.php");
+    exit;
+}
+
+// Move single item to cart
 if (isset($_GET['move_to_cart']) && is_numeric($_GET['move_to_cart'])) {
     $product_id = $_GET['move_to_cart'];
     
-    // Check if product is in wishlist
-    $check_wishlist = $conn->prepare("SELECT wishlist_id FROM wishlist WHERE customer_id = ? AND product_id = ?");
+    // Check if product is in wishlist and in stock
+    $check_wishlist = $conn->prepare("SELECT w.wishlist_id, p.stock FROM wishlist w 
+                                      JOIN products p ON w.product_id = p.product_id 
+                                      WHERE w.customer_id = ? AND w.product_id = ?");
     $check_wishlist->bind_param("ii", $user_id, $product_id);
     $check_wishlist->execute();
     $wishlist_result = $check_wishlist->get_result();
     
     if ($wishlist_result->num_rows > 0) {
-        // Check if already in cart
-        $check_cart = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ? AND product_id = ?");
-        $check_cart->bind_param("ii", $user_id, $product_id);
-        $check_cart->execute();
-        $cart_result = $check_cart->get_result();
+        $item = $wishlist_result->fetch_assoc();
         
-        if ($cart_result->num_rows == 0) {
-            // Add to cart
-            $add_cart = $conn->prepare("INSERT INTO cart (customer_id, product_id, quantity) VALUES (?, ?, 1)");
-            $add_cart->bind_param("ii", $user_id, $product_id);
-            $add_cart->execute();
-            $add_cart->close();
+        if ($item['stock'] > 0) {
+            // Check if already in cart
+            $check_cart = $conn->prepare("SELECT cart_id FROM cart WHERE customer_id = ? AND product_id = ?");
+            $check_cart->bind_param("ii", $user_id, $product_id);
+            $check_cart->execute();
+            $cart_result = $check_cart->get_result();
             
-            // Remove from wishlist
-            $remove_stmt = $conn->prepare("DELETE FROM wishlist WHERE customer_id = ? AND product_id = ?");
-            $remove_stmt->bind_param("ii", $user_id, $product_id);
-            $remove_stmt->execute();
-            
-            $_SESSION['success_message'] = "Product moved to cart!";
+            if ($cart_result->num_rows == 0) {
+                // Add to cart
+                $add_cart = $conn->prepare("INSERT INTO cart (customer_id, product_id, quantity) VALUES (?, ?, 1)");
+                $add_cart->bind_param("ii", $user_id, $product_id);
+                $add_cart->execute();
+                $add_cart->close();
+                
+                // Remove from wishlist
+                $remove_stmt = $conn->prepare("DELETE FROM wishlist WHERE customer_id = ? AND product_id = ?");
+                $remove_stmt->bind_param("ii", $user_id, $product_id);
+                $remove_stmt->execute();
+                
+                $_SESSION['success_message'] = "Product moved to cart!";
+            } else {
+                // If in cart, just remove from wishlist
+                $remove_stmt = $conn->prepare("DELETE FROM wishlist WHERE customer_id = ? AND product_id = ?");
+                $remove_stmt->bind_param("ii", $user_id, $product_id);
+                $remove_stmt->execute();
+                
+                $_SESSION['info_message'] = "Product was already in cart. Removed from wishlist only.";
+            }
+            $check_cart->close();
         } else {
-            $_SESSION['info_message'] = "Product is already in your cart!";
+            $_SESSION['error_message'] = "Cannot move to cart - product is out of stock!";
         }
-        $check_cart->close();
     }
     $check_wishlist->close();
     
@@ -148,6 +216,9 @@ $wishlist_stmt = $conn->prepare($wishlist_query);
 $wishlist_stmt->bind_param("i", $user_id);
 $wishlist_stmt->execute();
 $wishlist_result = $wishlist_stmt->get_result();
+
+// Get actual wishlist count
+$wishlist_count = $wishlist_result->num_rows;
 
 // Get cart count
 $cart_query = "SELECT COUNT(*) as cart_count FROM cart WHERE customer_id = ?";
@@ -584,7 +655,14 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
                         </a>
                     </li>
                     <li class="nav-item"><a class="nav-link" href="orders.php">Orders</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="wishlist.php">Wishlist</a></li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="wishlist.php">
+                            <i class="fas fa-heart me-1"></i> Wishlist
+                            <?php if($wishlist_count > 0): ?>
+                                <span class="badge bg-danger"><?php echo $wishlist_count; ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
                             <i class="fas fa-user-circle me-1"></i>
@@ -655,11 +733,11 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
             </div>
         </div>
 
-        <?php if ($wishlist_result->num_rows > 0): ?>
+        <?php if ($wishlist_count > 0): ?>
             <!-- Wishlist Header Actions -->
             <div class="wishlist-header-actions">
                 <div>
-                    <span class="text-muted"><?php echo $wishlist_result->num_rows; ?> item(s) in wishlist</span>
+                    <span class="text-muted"><?php echo $wishlist_count; ?> item(s) in wishlist</span>
                 </div>
                 <div>
                     <a href="wishlist.php?clear=true" class="btn btn-clear-wishlist" onclick="return confirm('Clear all items from wishlist?')">
@@ -670,7 +748,10 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
 
             <!-- Wishlist Items Grid -->
             <div class="row">
-                <?php while ($item = $wishlist_result->fetch_assoc()): 
+                <?php 
+                // Reset pointer to beginning
+                $wishlist_result->data_seek(0);
+                while ($item = $wishlist_result->fetch_assoc()): 
                     $image_path = '';
                     if ($item['image']) {
                         $image_name = basename($item['image']);
@@ -758,11 +839,12 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
             
             <!-- Move All to Cart Button -->
             <div class="text-center mt-4">
-                <a href="move_all_to_cart.php" class="btn" 
-                   style="background: var(--spice-pink); color: white; padding: 12px 30px; border-radius: 8px; font-weight: 500;"
-                   onclick="return confirm('Move all available items to cart? Out of stock items will remain in wishlist.')">
-                    <i class="fas fa-shopping-cart me-2"></i>Move All Available Items to Cart
-                </a>
+                <form method="POST" action="" onsubmit="return confirm('Move all available items to cart? Out of stock items will remain in wishlist.')">
+                    <button type="submit" name="move_all_to_cart" class="btn" 
+                            style="background: var(--spice-pink); color: white; padding: 12px 30px; border-radius: 8px; font-weight: 500; border: none;">
+                        <i class="fas fa-shopping-cart me-2"></i>Move All Available Items to Cart
+                    </button>
+                </form>
             </div>
         <?php else: ?>
             <!-- Empty Wishlist State -->
@@ -858,8 +940,6 @@ $cart_count = $cart_result->fetch_assoc()['cart_count'];
         
         // Update wishlist count in navbar
         function updateWishlistCount() {
-            // This would need an endpoint to get wishlist count
-            // For now, just reload the page
             setTimeout(() => {
                 location.reload();
             }, 1500);

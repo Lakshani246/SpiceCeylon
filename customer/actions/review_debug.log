@@ -12,3 +12,17 @@ POST data: Array
 Product ID: 36, Rating: 5, Comment length: 12
 Database connected successfully
 SUCCESS: Review submitted successfully. Review ID: 1
+=== Review Submission ===
+Time: 2026-02-23 17:50:51
+Session user_id: 1
+Session role: customer
+POST data: Array
+(
+    [product_id] => 24
+    [rating] => 5
+    [comment] => This Celery Seed was perfect for what I needed for my pickle relish and pickles this year. It is very cot effective and I will most certainly be ordering more.
+)
+
+Product ID: 24, Rating: 5, Comment length: 159
+Database connected successfully
+SUCCESS: Review submitted successfully. Review ID: 2

@@ -24,16 +24,9 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
     $action = $_GET['action'];
     
     if ($action == 'view') {
-        // Redirect to view page
-        if ($active_tab == 'farmers' || $active_tab == 'customers') {
-            header("Location: view_user.php?type=" . ($active_tab == 'farmers' ? 'farmer' : 'customer') . "&id=$user_id");
-        } elseif ($active_tab == 'admins') {
-            header("Location: view_admin.php?id=$user_id");
-        }
-        exit;
+        // Just continue - view is handled by modal
     }
-    
-    if ($action == 'approve') {
+    elseif ($action == 'approve') {
         if ($active_tab == 'farmers') {
             $conn->query("UPDATE users SET status = 'approved' WHERE user_id = '$user_id'");
             $_SESSION['message'] = "Farmer approved successfully! They can now add products.";
@@ -85,8 +78,10 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
         }
     }
     
-    header("Location: manage_users.php?tab=$active_tab");
-    exit;
+    if ($action != 'view') {
+        header("Location: manage_users.php?tab=$active_tab");
+        exit;
+    }
 }
 
 // Check if status column exists in users table
@@ -99,7 +94,7 @@ $has_admin_status_column = $admin_status_check->num_rows > 0;
 
 // If status column doesn't exist in users, create it
 if (!$has_status_column) {
-    $conn->query("ALTER TABLE users ADD COLUMN status ENUM('pending', 'approved', 'active', 'inactive', 'rejected') NOT NULL DEFAULT 'pending'");
+    $conn->query("ALTER TABLE users ADD COLUMN status ENUM('pending', 'approved', 'active', 'inactive', 'suspended', 'rejected') NOT NULL DEFAULT 'pending'");
     $has_status_column = true;
 }
 
@@ -123,8 +118,8 @@ $inactive_admins = $conn->query("SELECT COUNT(*) as count FROM admins WHERE stat
 if ($active_tab == 'farmers') {
     $query = "SELECT u.*, 
                      (SELECT COUNT(*) FROM products WHERE farmer_id = u.user_id) as total_products,
-                     (SELECT COUNT(*) FROM products WHERE farmer_id = u.user_id AND status='approved') as approved_products,
-                     (SELECT COUNT(*) FROM products WHERE farmer_id = u.user_id AND status='pending') as pending_products,
+                     (SELECT COUNT(*) FROM products WHERE farmer_id = u.user_id AND admin_approved='approved') as approved_products,
+                     (SELECT COUNT(*) FROM products WHERE farmer_id = u.user_id AND admin_approved='pending') as pending_products,
                      (SELECT COUNT(*) FROM orders o JOIN order_items oi ON o.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id WHERE p.farmer_id = u.user_id) as total_orders
               FROM users u 
               WHERE role='farmer' 
@@ -144,7 +139,7 @@ if ($active_tab == 'farmers') {
 elseif ($active_tab == 'customers') {
     $query = "SELECT u.*, 
                      (SELECT COUNT(*) FROM orders WHERE customer_id = u.user_id) as total_orders,
-                     (SELECT SUM(total_amount) FROM orders WHERE customer_id = u.user_id AND status='completed') as total_spent
+                     (SELECT COALESCE(SUM(final_total), 0) FROM orders WHERE customer_id = u.user_id AND status='completed') as total_spent
               FROM users u 
               WHERE role='customer' 
               ORDER BY 
@@ -161,7 +156,7 @@ elseif ($active_tab == 'admins') {
               ORDER BY 
                 CASE role 
                     WHEN 'super_admin' THEN 1
-                    WHEN 'admin' THEN 2
+                    WHEN 'moderator' THEN 2
                     ELSE 3
                 END,
                 created_at DESC";
@@ -268,6 +263,7 @@ $total_users = $users_result->num_rows;
         .user-card.active { border-left: 4px solid var(--spice-green); }
         .user-card.inactive { border-left: 4px solid #95a5a6; }
         .user-card.rejected { border-left: 4px solid var(--rejected); }
+        .user-card.suspended { border-left: 4px solid #e67e22; }
         
         .status-badge {
             padding: 5px 12px;
@@ -281,6 +277,7 @@ $total_users = $users_result->num_rows;
         .badge-active { background: rgba(39, 174, 96, 0.15); color: var(--spice-green); }
         .badge-inactive { background: rgba(149, 165, 166, 0.15); color: #7f8c8d; }
         .badge-rejected { background: rgba(231, 76, 60, 0.15); color: var(--rejected); }
+        .badge-suspended { background: rgba(230, 126, 34, 0.15); color: #e67e22; }
         
         .stat-card {
             border-radius: 12px;
@@ -410,6 +407,342 @@ $total_users = $users_result->num_rows;
             font-size: 4rem;
             color: #e9ecef;
             margin-bottom: 20px;
+        }
+        
+        /* View Modal Styles - Matching request page modals */
+        .view-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .view-modal .modal-header {
+            background: linear-gradient(135deg, var(--spice-blue), #2980b9);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+            padding: 20px 30px;
+        }
+        
+        .view-modal .modal-header.farmer {
+            background: linear-gradient(135deg, var(--spice-green), #219653);
+        }
+        
+        .view-modal .modal-header.customer {
+            background: linear-gradient(135deg, var(--spice-blue), #2980b9);
+        }
+        
+        .view-modal .modal-header.admin {
+            background: linear-gradient(135deg, var(--spice-gold), #e67e22);
+        }
+        
+        .view-modal .modal-body {
+            padding: 30px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .view-modal .modal-footer {
+            border-top: 1px solid #e9ecef;
+            padding: 15px 30px;
+        }
+        
+        .view-modal .user-profile-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .view-modal .user-profile-image {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            border: 5px solid white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .view-modal .user-profile-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .view-modal .user-profile-image i {
+            font-size: 4rem;
+            color: var(--spice-dark);
+        }
+        
+        .view-modal .user-profile-image.farmer i { color: var(--spice-green); }
+        .view-modal .user-profile-image.customer i { color: var(--spice-blue); }
+        .view-modal .user-profile-image.admin i { color: var(--spice-gold); }
+        
+        .view-modal .user-name {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--spice-dark);
+            margin-bottom: 5px;
+        }
+        
+        .view-modal .user-role-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+        
+        .view-modal .user-role-badge.farmer {
+            background: rgba(39, 174, 96, 0.1);
+            color: var(--spice-green);
+        }
+        
+        .view-modal .user-role-badge.customer {
+            background: rgba(52, 152, 219, 0.1);
+            color: var(--spice-blue);
+        }
+        
+        .view-modal .user-role-badge.admin {
+            background: rgba(243, 156, 18, 0.1);
+            color: var(--spice-gold);
+        }
+        
+        .view-modal .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .view-modal .info-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            transition: transform 0.3s ease;
+        }
+        
+        .view-modal .info-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .view-modal .info-item.full-width {
+            grid-column: span 2;
+        }
+        
+        .view-modal .info-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .view-modal .info-label i {
+            width: 20px;
+            margin-right: 8px;
+            color: var(--spice-blue);
+            font-size: 1rem;
+        }
+        
+        .view-modal .info-value {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: var(--spice-dark);
+            word-break: break-word;
+        }
+        
+        .view-modal .info-value.small {
+            font-size: 1rem;
+        }
+        
+        .view-modal .member-since {
+            background: #f0f9ff;
+            border-left: 4px solid var(--spice-blue);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 1rem;
+        }
+        
+        .view-modal .member-since i {
+            color: var(--spice-blue);
+            margin-right: 10px;
+        }
+        
+        .view-modal .product-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .view-modal .product-stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        
+        .view-modal .product-stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        
+        .view-modal .product-stat-card .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--spice-blue);
+            margin-bottom: 8px;
+        }
+        
+        .view-modal .product-stat-card .stat-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .view-modal .product-stat-card.pending .stat-number { color: var(--pending); }
+        .view-modal .product-stat-card.approved .stat-number { color: var(--approved); }
+        .view-modal .product-stat-card.total .stat-number { color: var(--spice-green); }
+        
+        /* Confirmation Modal Styles */
+        .confirm-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .confirm-modal .modal-header {
+            background: linear-gradient(135deg, var(--spice-red), #d35400);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+            padding: 20px;
+        }
+        
+        .confirm-modal .modal-header.warning {
+            background: linear-gradient(135deg, #f39c12, #e67e22);
+        }
+        
+        .confirm-modal .modal-header.danger {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+        }
+        
+        .confirm-modal .modal-header.success {
+            background: linear-gradient(135deg, #27ae60, #219653);
+        }
+        
+        .confirm-modal .modal-header.info {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+        }
+        
+        .confirm-modal .modal-body {
+            padding: 25px;
+            text-align: center;
+        }
+        
+        .confirm-modal .modal-body i {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+        
+        .confirm-modal .modal-body i.warning-icon {
+            color: #f39c12;
+        }
+        
+        .confirm-modal .modal-body i.danger-icon {
+            color: #e74c3c;
+        }
+        
+        .confirm-modal .modal-body i.success-icon {
+            color: #27ae60;
+        }
+        
+        .confirm-modal .modal-body h5 {
+            color: var(--spice-dark);
+            font-weight: 600;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+        
+        .confirm-modal .modal-body p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .confirm-modal .modal-footer {
+            border-top: 1px solid #e9ecef;
+            padding: 15px 25px;
+            justify-content: center;
+        }
+        
+        .confirm-modal .btn {
+            padding: 10px 30px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s;
+            min-width: 140px;
+            font-size: 1rem;
+        }
+        
+        .confirm-modal .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .confirm-modal .btn-cancel {
+            background: #e9ecef;
+            color: #7f8c8d;
+            border: none;
+        }
+        
+        .confirm-modal .btn-cancel:hover {
+            background: #dee2e6;
+        }
+        
+        .confirm-modal .btn-confirm {
+            background: var(--spice-green);
+            color: white;
+            border: none;
+        }
+        
+        .confirm-modal .btn-confirm:hover {
+            background: #219653;
+        }
+        
+        .confirm-modal .btn-confirm.warning {
+            background: #f39c12;
+        }
+        
+        .confirm-modal .btn-confirm.warning:hover {
+            background: #e67e22;
+        }
+        
+        .confirm-modal .btn-confirm.danger {
+            background: #e74c3c;
+        }
+        
+        .confirm-modal .btn-confirm.danger:hover {
+            background: #c0392b;
+        }
+        
+        .confirm-modal .btn-confirm.info {
+            background: #3498db;
+        }
+        
+        .confirm-modal .btn-confirm.info:hover {
+            background: #2980b9;
         }
     </style>
 </head>
@@ -674,6 +1007,9 @@ $total_users = $users_result->num_rows;
                                         case 'rejected': 
                                             $status_icon = 'fa-times-circle';
                                             break;
+                                        case 'suspended':
+                                            $status_icon = 'fa-exclamation-circle';
+                                            break;
                                     }
                                     ?>
                                     <span class="status-badge <?php echo $status_class; ?> mb-2 d-inline-block">
@@ -735,8 +1071,8 @@ $total_users = $users_result->num_rows;
                                         <div class="small">
                                             <?php if($role == 'super_admin'): ?>
                                             <span class="badge bg-danger badge-sm mb-1">Super Admin</span>
-                                            <?php elseif($role == 'admin'): ?>
-                                            <span class="badge bg-primary badge-sm mb-1">Admin</span>
+                                            <?php elseif($role == 'moderator'): ?>
+                                            <span class="badge bg-primary badge-sm mb-1">Moderator</span>
                                             <?php endif; ?>
                                             <?php if(isset($user['created_at'])): ?>
                                             <div class="text-muted">
@@ -751,102 +1087,90 @@ $total_users = $users_result->num_rows;
                                 <div class="col-md-2">
                                     <div class="action-buttons d-flex flex-wrap justify-content-end">
                                         <!-- View Button -->
-                                        <a href="manage_users.php?action=view&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                           class="btn btn-outline-primary btn-sm me-1 mb-1">
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1 mb-1" 
+                                                onclick="showUserModal(<?php echo $id; ?>, '<?php echo $active_tab; ?>')">
                                             <i class="fas fa-eye"></i> View
-                                        </a>
+                                        </button>
                                         
                                         <?php if($active_tab == 'farmers'): ?>
                                             <!-- PENDING Farmers -->
                                             <?php if($status == 'pending'): ?>
-                                                <a href="manage_users.php?action=approve&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-success btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Approve this farmer? They can now add products.')">
+                                                <button type="button" class="btn btn-success btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('approve', <?php echo $id; ?>, 'Approve this farmer? They can now add products.')">
                                                     <i class="fas fa-check"></i> Approve
-                                                </a>
-                                                <a href="manage_users.php?action=reject&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-warning btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Reject this farmer registration?')">
+                                                </button>
+                                                <button type="button" class="btn btn-warning btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('reject', <?php echo $id; ?>, 'Reject this farmer registration?')">
                                                     <i class="fas fa-times"></i> Reject
-                                                </a>
+                                                </button>
                                             
                                             <!-- APPROVED Farmers -->
                                             <?php elseif($status == 'approved'): ?>
-                                                <a href="manage_users.php?action=activate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-success btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Activate this farmer account?')">
+                                                <button type="button" class="btn btn-success btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('activate', <?php echo $id; ?>, 'Activate this farmer account?')">
                                                     <i class="fas fa-play"></i> Activate
-                                                </a>
-                                                <a href="manage_users.php?action=deactivate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-warning btn-sm me-1 mb-1">
+                                                </button>
+                                                <button type="button" class="btn btn-warning btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('deactivate', <?php echo $id; ?>, 'Deactivate this farmer?')">
                                                     <i class="fas fa-pause"></i> Deactivate
-                                                </a>
+                                                </button>
                                             
                                             <!-- ACTIVE Farmers -->
                                             <?php elseif($status == 'active'): ?>
-                                                <a href="manage_users.php?action=deactivate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-warning btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Deactivate this farmer?')">
+                                                <button type="button" class="btn btn-warning btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('deactivate', <?php echo $id; ?>, 'Deactivate this farmer?')">
                                                     <i class="fas fa-pause"></i> Deactivate
-                                                </a>
+                                                </button>
                                             
                                             <!-- INACTIVE/REJECTED Farmers -->
                                             <?php elseif($status == 'inactive' || $status == 'rejected'): ?>
-                                                <a href="manage_users.php?action=activate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-success btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Activate this farmer?')">
+                                                <button type="button" class="btn btn-success btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('activate', <?php echo $id; ?>, 'Activate this farmer?')">
                                                     <i class="fas fa-play"></i> Activate
-                                                </a>
-                                                <a href="manage_users.php?action=delete&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-danger btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Permanently delete this farmer? This cannot be undone!')">
+                                                </button>
+                                                <button type="button" class="btn btn-danger btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('delete', <?php echo $id; ?>, 'Permanently delete this farmer? This cannot be undone!', 'danger')">
                                                     <i class="fas fa-trash"></i> Delete
-                                                </a>
+                                                </button>
                                             <?php endif; ?>
                                         
                                         <?php elseif($active_tab == 'customers'): ?>
                                             <!-- ACTIVE Customers -->
                                             <?php if($status == 'active'): ?>
-                                                <a href="manage_users.php?action=deactivate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-warning btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Deactivate this customer?')">
+                                                <button type="button" class="btn btn-warning btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('deactivate', <?php echo $id; ?>, 'Deactivate this customer?')">
                                                     <i class="fas fa-pause"></i> Deactivate
-                                                </a>
+                                                </button>
                                             
                                             <!-- INACTIVE Customers -->
                                             <?php elseif($status == 'inactive'): ?>
-                                                <a href="manage_users.php?action=activate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-success btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Activate this customer?')">
+                                                <button type="button" class="btn btn-success btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('activate', <?php echo $id; ?>, 'Activate this customer?')">
                                                     <i class="fas fa-play"></i> Activate
-                                                </a>
-                                                <a href="manage_users.php?action=delete&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                   class="btn btn-danger btn-sm me-1 mb-1"
-                                                   onclick="return confirm('Permanently delete this customer? This cannot be undone!')">
+                                                </button>
+                                                <button type="button" class="btn btn-danger btn-sm me-1 mb-1" 
+                                                        onclick="showConfirmModal('delete', <?php echo $id; ?>, 'Permanently delete this customer? This cannot be undone!', 'danger')">
                                                     <i class="fas fa-trash"></i> Delete
-                                                </a>
+                                                </button>
                                             <?php endif; ?>
                                         
                                         <?php elseif($active_tab == 'admins'): ?>
                                             <!-- Only show actions for non-super-admin and not yourself -->
                                             <?php if($role != 'super_admin' && $id != $admin_id): ?>
                                                 <?php if($status == 'active'): ?>
-                                                    <a href="manage_users.php?action=deactivate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                       class="btn btn-warning btn-sm me-1 mb-1"
-                                                       onclick="return confirm('Deactivate this admin?')">
+                                                    <button type="button" class="btn btn-warning btn-sm me-1 mb-1" 
+                                                            onclick="showConfirmModal('deactivate', <?php echo $id; ?>, 'Deactivate this admin?')">
                                                         <i class="fas fa-pause"></i> Deactivate
-                                                    </a>
+                                                    </button>
                                                 <?php elseif($status == 'inactive'): ?>
-                                                    <a href="manage_users.php?action=activate&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                       class="btn btn-success btn-sm me-1 mb-1"
-                                                       onclick="return confirm('Activate this admin?')">
+                                                    <button type="button" class="btn btn-success btn-sm me-1 mb-1" 
+                                                            onclick="showConfirmModal('activate', <?php echo $id; ?>, 'Activate this admin?')">
                                                         <i class="fas fa-play"></i> Activate
-                                                    </a>
-                                                    <a href="manage_users.php?action=delete&id=<?php echo $id; ?>&tab=<?php echo $active_tab; ?>" 
-                                                       class="btn btn-danger btn-sm me-1 mb-1"
-                                                       onclick="return confirm('Permanently delete this admin?')">
+                                                    </button>
+                                                    <button type="button" class="btn btn-danger btn-sm me-1 mb-1" 
+                                                            onclick="showConfirmModal('delete', <?php echo $id; ?>, 'Permanently delete this admin? This cannot be undone!', 'danger')">
                                                         <i class="fas fa-trash"></i> Delete
-                                                    </a>
+                                                    </button>
                                                 <?php endif; ?>
                                             <?php else: ?>
                                                 <span class="badge bg-info">Protected</span>
@@ -878,9 +1202,61 @@ $total_users = $users_result->num_rows;
         </div>
     </div>
 
+    <!-- User View Modal -->
+    <div class="modal fade view-modal" id="userViewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header" id="viewModalHeader">
+                    <h5 class="modal-title" id="viewModalTitle">
+                        <i class="fas fa-user me-2"></i> User Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="viewModalBody">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2">Loading user details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade confirm-modal" id="confirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header" id="confirmModalHeader">
+                    <h5 class="modal-title" id="confirmModalTitle">
+                        <i class="fas fa-question-circle me-2"></i> Confirm Action
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <i class="" id="confirmModalIcon"></i>
+                    <h5 id="confirmModalMessage"></h5>
+                    <p id="confirmModalDetail"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-confirm" id="confirmActionBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Store current action data
+        var currentAction = '';
+        var currentUserId = 0;
+        
         // Auto-dismiss alerts after 5 seconds
         $(document).ready(function() {
             setTimeout(function() {
@@ -892,6 +1268,275 @@ $total_users = $users_result->num_rows;
         const currentTab = "<?php echo $active_tab; ?>";
         $('.stat-card').removeClass('active');
         $(`.stat-card.${currentTab}`).addClass('active');
+        
+        // Show user modal
+        function showUserModal(userId, userType) {
+            var modal = $('#userViewModal');
+            var header = $('#viewModalHeader');
+            var title = $('#viewModalTitle');
+            var body = $('#viewModalBody');
+            
+            // Set header color based on user type
+            header.removeClass('farmer customer admin');
+            if (userType === 'farmers') {
+                header.addClass('farmer');
+                title.html('<i class="fas fa-tractor me-2"></i> Farmer Details');
+            } else if (userType === 'customers') {
+                header.addClass('customer');
+                title.html('<i class="fas fa-user me-2"></i> Customer Details');
+            } else {
+                header.addClass('admin');
+                title.html('<i class="fas fa-user-shield me-2"></i> Admin Details');
+            }
+            
+            // Show loading
+            body.html('<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Loading user details...</p></div>');
+            
+            modal.modal('show');
+            
+            // Fetch user data
+            $.ajax({
+                url: 'get_user_details.php',
+                type: 'POST',
+                data: {
+                    user_id: userId,
+                    user_type: userType
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        displayUserDetails(response.data, userType);
+                    } else {
+                        body.html('<div class="alert alert-danger">Error loading user details.</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('AJAX Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    body.html('<div class="alert alert-danger">Error loading user details. Please check console for details.</div>');
+                }
+            });
+        }
+        
+        // Display user details
+        function displayUserDetails(user, userType) {
+            var body = $('#viewModalBody');
+            
+            // Ensure total_spent is a number and properly formatted
+            var totalSpent = 0;
+            if (user.total_spent) {
+                totalSpent = parseFloat(user.total_spent);
+                if (isNaN(totalSpent)) totalSpent = 0;
+            }
+            
+            var html = '';
+            
+            if (userType === 'farmers') {
+                html = `
+                    <div class="user-profile-section">
+                        <div class="user-profile-image farmer">
+                            <img src="${user.profile_image_url}" alt="Profile" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-tractor\'></i>'">
+                        </div>
+                        <h3 class="user-name">${escapeHtml(user.name || 'N/A')}</h3>
+                        <span class="user-role-badge farmer">
+                            <i class="fas fa-tractor me-1"></i> Farmer
+                        </span>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-envelope"></i> Email</div>
+                            <div class="info-value">${escapeHtml(user.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-phone"></i> Phone</div>
+                            <div class="info-value">${escapeHtml(user.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-map-marker-alt"></i> Address</div>
+                            <div class="info-value small">${escapeHtml(user.address || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-tractor"></i> Farm Location</div>
+                            <div class="info-value">${escapeHtml(user.farm_location || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-circle"></i> Status</div>
+                            <div class="info-value">${escapeHtml(user.status_display || 'N/A')}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="member-since">
+                        <i class="fas fa-calendar-alt"></i> 
+                        Member since: <strong>${escapeHtml(user.joined_date || 'N/A')}</strong>
+                    </div>
+                    
+                    <div class="product-stats-grid">
+                        <div class="product-stat-card total">
+                            <div class="stat-number">${user.total_products || 0}</div>
+                            <div class="stat-label">Total Products</div>
+                        </div>
+                        <div class="product-stat-card approved">
+                            <div class="stat-number">${user.approved_products || 0}</div>
+                            <div class="stat-label">Approved</div>
+                        </div>
+                        <div class="product-stat-card pending">
+                            <div class="stat-number">${user.pending_products || 0}</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                    </div>
+                `;
+            } else if (userType === 'customers') {
+                html = `
+                    <div class="user-profile-section">
+                        <div class="user-profile-image customer">
+                            <img src="${user.profile_image_url}" alt="Profile" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-user\'></i>'">
+                        </div>
+                        <h3 class="user-name">${escapeHtml(user.name || 'N/A')}</h3>
+                        <span class="user-role-badge customer">
+                            <i class="fas fa-user me-1"></i> Customer
+                        </span>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-envelope"></i> Email</div>
+                            <div class="info-value">${escapeHtml(user.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-phone"></i> Phone</div>
+                            <div class="info-value">${escapeHtml(user.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-item full-width">
+                            <div class="info-label"><i class="fas fa-map-marker-alt"></i> Address</div>
+                            <div class="info-value">${escapeHtml(user.address || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-circle"></i> Status</div>
+                            <div class="info-value">${escapeHtml(user.status_display || 'N/A')}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="member-since">
+                        <i class="fas fa-calendar-alt"></i> 
+                        Member since: <strong>${escapeHtml(user.joined_date || 'N/A')}</strong>
+                    </div>
+                    
+                    <div class="product-stats-grid">
+                        <div class="product-stat-card total">
+                            <div class="stat-number">${user.total_orders || 0}</div>
+                            <div class="stat-label">Total Orders</div>
+                        </div>
+                        <div class="product-stat-card approved">
+                            <div class="stat-number">LKR ${totalSpent.toFixed(2)}</div>
+                            <div class="stat-label">Total Spent</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html = `
+                    <div class="user-profile-section">
+                        <div class="user-profile-image admin">
+                            <img src="${user.profile_image_url}" alt="Profile" onerror="this.onerror=null; this.parentElement.innerHTML='<i class=\'fas fa-user-shield\'></i>'">
+                        </div>
+                        <h3 class="user-name">${escapeHtml(user.username || 'N/A')}</h3>
+                        <span class="user-role-badge admin">
+                            <i class="fas fa-user-shield me-1"></i> ${escapeHtml(user.role ? user.role.replace('_', ' ') : 'Admin')}
+                        </span>
+                    </div>
+                    
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-envelope"></i> Email</div>
+                            <div class="info-value">${escapeHtml(user.email || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-phone"></i> Phone</div>
+                            <div class="info-value">${escapeHtml(user.phone || 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-user-tag"></i> Role</div>
+                            <div class="info-value">${escapeHtml(user.role ? user.role.replace('_', ' ') : 'N/A')}</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label"><i class="fas fa-circle"></i> Status</div>
+                            <div class="info-value">${escapeHtml(user.status_display || 'N/A')}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="member-since">
+                        <i class="fas fa-calendar-alt"></i> 
+                        Admin since: <strong>${escapeHtml(user.joined_date || 'N/A')}</strong>
+                    </div>
+                `;
+            }
+            
+            body.html(html);
+        }
+        
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return text;
+            var map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+        
+        // Show confirmation modal
+        function showConfirmModal(action, userId, message, type = 'warning') {
+            currentAction = action;
+            currentUserId = userId;
+            
+            var modal = $('#confirmModal');
+            var header = $('#confirmModalHeader');
+            var icon = $('#confirmModalIcon');
+            var title = $('#confirmModalTitle');
+            var msg = $('#confirmModalMessage');
+            var detail = $('#confirmModalDetail');
+            var confirmBtn = $('#confirmActionBtn');
+            
+            // Set icon and colors based on type
+            if (type === 'danger') {
+                header.removeClass().addClass('modal-header danger');
+                icon.removeClass().addClass('fas fa-exclamation-triangle danger-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm danger');
+            } else if (type === 'success') {
+                header.removeClass().addClass('modal-header success');
+                icon.removeClass().addClass('fas fa-check-circle success-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm');
+            } else {
+                header.removeClass().addClass('modal-header warning');
+                icon.removeClass().addClass('fas fa-exclamation-triangle warning-icon');
+                confirmBtn.removeClass().addClass('btn btn-confirm warning');
+            }
+            
+            title.html('<i class="fas fa-question-circle me-2"></i> Confirm ' + action.charAt(0).toUpperCase() + action.slice(1));
+            msg.html(message);
+            
+            if (action === 'delete') {
+                detail.html('This action cannot be undone.');
+            } else {
+                detail.html('');
+            }
+            
+            // Set confirm button action
+            confirmBtn.off('click').on('click', function() {
+                executeAction(action, userId);
+            });
+            
+            modal.modal('show');
+        }
+        
+        // Execute action
+        function executeAction(action, userId) {
+            var url = 'manage_users.php?action=' + action + '&id=' + userId + '&tab=<?php echo $active_tab; ?>';
+            window.location.href = url;
+        }
     </script>
 </body>
 </html>

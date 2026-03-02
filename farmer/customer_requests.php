@@ -18,13 +18,14 @@ $farmer = $farmer_query->get_result()->fetch_assoc();
 // Get farmer statistics
 $total_products = $conn->query("SELECT COUNT(*) as count FROM products WHERE farmer_id = $farmer_id")->fetch_assoc()['count'];
 $total_requests = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE assigned_farmer_id = $farmer_id")->fetch_assoc()['count'];
-$pending_requests = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE assigned_farmer_id = $farmer_id AND status = 'Pending' OR status = 'Approved'")->fetch_assoc()['count'];
+$pending_requests = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE assigned_farmer_id = $farmer_id AND (status = 'Pending' OR status = 'Approved')")->fetch_assoc()['count'];
 $completed_requests = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE assigned_farmer_id = $farmer_id AND status = 'Completed'")->fetch_assoc()['count'];
 
 // Handle status update from farmer
 $update_success = false;
 $update_error = false;
 $error_message = '';
+$success_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $request_id = intval($_POST['request_id']);
@@ -32,36 +33,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $farmer_notes = trim($_POST['farmer_notes']);
     
     // Verify the request belongs to this farmer
-    $verify_query = $conn->prepare("SELECT * FROM product_requests WHERE request_id = ? AND assigned_farmer_id = ?");
+    $verify_query = $conn->prepare("SELECT pr.*, u.name as customer_name, u.email as customer_email FROM product_requests pr JOIN users u ON pr.customer_id = u.user_id WHERE pr.request_id = ? AND pr.assigned_farmer_id = ?");
     $verify_query->bind_param("ii", $request_id, $farmer_id);
     $verify_query->execute();
     $request = $verify_query->get_result()->fetch_assoc();
     
     if ($request) {
-        // Update request status with farmer notes
+        // Format the update note with status
+        $update_note = "[Farmer Update: " . date('Y-m-d H:i:s') . " - Status changed to: " . $new_status . (!empty($farmer_notes) ? " - Notes: " . $farmer_notes : "") . "]";
+        
+        // Update request status with farmer notes - REPLACE instead of CONCAT to keep only the latest
         $update_query = $conn->prepare("
             UPDATE product_requests SET 
             status = ?, 
-            admin_notes = CONCAT(COALESCE(admin_notes, ''), '\n[Farmer Update: ', NOW(), ' - ', ?, ']'),
+            admin_notes = ?,
             updated_at = NOW()
             WHERE request_id = ?
         ");
-        $update_query->bind_param("ssi", $new_status, $farmer_notes, $request_id);
+        $update_query->bind_param("ssi", $new_status, $update_note, $request_id);
         
         if ($update_query->execute()) {
             $update_success = true;
+            $success_message = "Request status updated to '" . $new_status . "' successfully!";
             
-            // Log the update if request_history table exists
-            $table_check = $conn->query("SHOW TABLES LIKE 'request_history'");
-            if ($table_check->num_rows > 0) {
-                $history_query = $conn->prepare("
-                    INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes)
-                    VALUES (?, NULL, ?, ?, ?)
-                ");
-                $notes = "Updated by farmer: " . ($farmer_notes ?: 'No notes provided');
-                $history_query->bind_param("isss", $request_id, $request['status'], $new_status, $notes);
-                $history_query->execute();
-            }
+            // Send notification to customer
+            $notification_title = "Request Status Update";
+            $notification_message = "Your request for '" . $request['product_name'] . "' has been updated to: " . $new_status . ". " . ($farmer_notes ? "Farmer notes: " . $farmer_notes : "");
+            
+            $notify_query = $conn->prepare("
+                INSERT INTO notifications (title, message, target_roles, target_user_id, sender_id, sender_role) 
+                VALUES (?, ?, 'specific', ?, ?, 'farmer')
+            ");
+            $notify_query->bind_param("ssii", $notification_title, $notification_message, $request['customer_id'], $farmer_id);
+            $notify_query->execute();
             
         } else {
             $update_error = true;
@@ -86,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
     $stock = intval($_POST['stock']);
     
     // Verify the request belongs to this farmer
-    $verify_query = $conn->prepare("SELECT * FROM product_requests WHERE request_id = ? AND assigned_farmer_id = ?");
+    $verify_query = $conn->prepare("SELECT pr.*, u.name as customer_name, u.email as customer_email FROM product_requests pr JOIN users u ON pr.customer_id = u.user_id WHERE pr.request_id = ? AND pr.assigned_farmer_id = ?");
     $verify_query->bind_param("ii", $request_id, $farmer_id);
     $verify_query->execute();
     $request = $verify_query->get_result()->fetch_assoc();
@@ -97,33 +101,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_product'])) {
             INSERT INTO products (farmer_id, name, description, category, price, stock, image, status, admin_approved)
             VALUES (?, ?, ?, ?, ?, ?, 'default.jpg', 'Pending', 'pending')
         ");
-        $product_query->bind_param("isssdii", $farmer_id, $product_name, $description, $category, $price, $stock);
+        $product_query->bind_param("isssdi", $farmer_id, $product_name, $description, $category, $price, $stock);
         
         if ($product_query->execute()) {
             $new_product_id = $product_query->insert_id;
             $product_added = true;
+            $success_message = "Product added to catalog successfully! It will be reviewed by admin.";
             
             // Update request status to Reviewed
+            $update_note = "[Farmer added product to catalog. Product ID: " . $new_product_id . "]";
             $update_query = $conn->prepare("
                 UPDATE product_requests SET 
                 status = 'Reviewed',
-                admin_notes = CONCAT(COALESCE(admin_notes, ''), '\n[Farmer added product to catalog. Product ID: ', ?, ']'),
+                admin_notes = ?,
                 updated_at = NOW()
                 WHERE request_id = ?
             ");
-            $update_query->bind_param("ii", $new_product_id, $request_id);
+            $update_query->bind_param("si", $update_note, $request_id);
             $update_query->execute();
             
-            // Log in history if table exists
-            $table_check = $conn->query("SHOW TABLES LIKE 'request_history'");
-            if ($table_check->num_rows > 0) {
-                $history_query = $conn->prepare("
-                    INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes)
-                    VALUES (?, NULL, ?, 'Reviewed', 'Farmer added product to catalog')
-                ");
-                $history_query->bind_param("is", $request_id, $request['status']);
-                $history_query->execute();
-            }
+            // Send notification to customer
+            $notification_title = "Product Added from Your Request";
+            $notification_message = "The farmer has added '" . $product_name . "' to their catalog based on your request. It will be available after admin approval.";
+            
+            $notify_query = $conn->prepare("
+                INSERT INTO notifications (title, message, target_roles, target_user_id, sender_id, sender_role) 
+                VALUES (?, ?, 'specific', ?, ?, 'farmer')
+            ");
+            $notify_query->bind_param("ssii", $notification_title, $notification_message, $request['customer_id'], $farmer_id);
+            $notify_query->execute();
             
         } else {
             $product_error = true;
@@ -180,9 +186,10 @@ $requests_query = $conn->prepare("
         CASE WHEN pr.status = 'Pending' THEN 1
              WHEN pr.status = 'Approved' THEN 2
              WHEN pr.status = 'Reviewed' THEN 3
-             WHEN pr.status = 'Rejected' THEN 4
-             WHEN pr.status = 'Completed' THEN 5
-             ELSE 6 END,
+             WHEN pr.status = 'Accepted' THEN 4
+             WHEN pr.status = 'Rejected' THEN 5
+             WHEN pr.status = 'Completed' THEN 6
+             ELSE 7 END,
         CASE WHEN pr.urgency = 'High' THEN 1
              WHEN pr.urgency = 'Medium' THEN 2
              ELSE 3 END,
@@ -222,14 +229,6 @@ $categories_query = $conn->query("
     ORDER BY category
 ");
 
-// Get farmer's products for reference
-$farmer_products = $conn->query("
-    SELECT name, category, price, stock 
-    FROM products 
-    WHERE farmer_id = $farmer_id 
-    ORDER BY name
-");
-
 $conn->close();
 ?>
 
@@ -241,6 +240,8 @@ $conn->close();
     <title>Customer Requests - Farmer Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Toastr CSS for notifications -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <style>
         :root {
             --farmer-green: #27ae60;
@@ -251,6 +252,7 @@ $conn->close();
             --pending: #f39c12;
             --reviewed: #3498db;
             --approved: #27ae60;
+            --accepted: #9b59b6;
             --rejected: #e74c3c;
             --completed: #2ecc71;
             --high-urgency: #e74c3c;
@@ -379,6 +381,16 @@ $conn->close();
             box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
         }
         
+        .btn-outline-success {
+            border-color: var(--farmer-green);
+            color: var(--farmer-green);
+        }
+        
+        .btn-outline-success:hover {
+            background: var(--farmer-green);
+            color: white;
+        }
+        
         .dashboard-header {
             background: white;
             padding: 25px;
@@ -421,6 +433,11 @@ $conn->close();
             background: rgba(39, 174, 96, 0.05);
         }
         
+        .request-item.Accepted {
+            border-left-color: var(--accepted);
+            background: rgba(155, 89, 182, 0.05);
+        }
+        
         .request-item.Rejected {
             border-left-color: var(--rejected);
             background: rgba(231, 76, 60, 0.05);
@@ -452,6 +469,11 @@ $conn->close();
         .badge-Approved {
             background: rgba(39, 174, 96, 0.15);
             color: var(--approved);
+        }
+        
+        .badge-Accepted {
+            background: rgba(155, 89, 182, 0.15);
+            color: var(--accepted);
         }
         
         .badge-Rejected {
@@ -501,6 +523,19 @@ $conn->close();
             flex-wrap: wrap;
         }
         
+        /* Modal Styles */
+        .modal {
+            z-index: 1050;
+        }
+        
+        .modal-backdrop {
+            z-index: 1040;
+        }
+        
+        .modal-dialog {
+            z-index: 1060;
+        }
+        
         .modal-content {
             border-radius: 12px;
             border: none;
@@ -513,6 +548,22 @@ $conn->close();
             border-radius: 12px 12px 0 0;
             border-bottom: none;
             padding: 20px 30px;
+        }
+        
+        .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+            opacity: 1;
+        }
+        
+        .modal-body {
+            background: white;
+            padding: 30px;
+        }
+        
+        .modal-footer {
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            padding: 15px 30px;
         }
         
         .empty-state {
@@ -563,34 +614,6 @@ $conn->close();
             border-left: 3px solid #9b59b6;
         }
         
-        .tab-content {
-            padding: 25px 0;
-        }
-        
-        .nav-tabs {
-            border-bottom: 2px solid #e9ecef;
-        }
-        
-        .nav-tabs .nav-link {
-            border: none;
-            color: #6c757d;
-            font-weight: 600;
-            padding: 12px 25px;
-            border-radius: 8px 8px 0 0;
-            margin-right: 5px;
-        }
-        
-        .nav-tabs .nav-link.active {
-            color: var(--farmer-green);
-            background-color: white;
-            border-bottom: 3px solid var(--farmer-green);
-        }
-        
-        .nav-tabs .nav-link:hover {
-            color: var(--farmer-green);
-            border-color: transparent;
-        }
-        
         .request-details {
             background: white;
             border-radius: 8px;
@@ -636,7 +659,6 @@ $conn->close();
             margin-bottom: 5px;
         }
         
-        /* Admin assignment badge */
         .admin-assignment {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
@@ -646,6 +668,37 @@ $conn->close();
             display: inline-flex;
             align-items: center;
             margin-bottom: 10px;
+        }
+        
+        /* Toastr customization */
+        #toast-container > .toast-success {
+            background-color: var(--farmer-green);
+        }
+        
+        #toast-container > .toast-error {
+            background-color: #e74c3c;
+        }
+        
+        #toast-container > .toast-info {
+            background-color: var(--farmer-blue);
+        }
+        
+        #toast-container > .toast-warning {
+            background-color: var(--farmer-gold);
+        }
+        
+        /* Single update note style */
+        .single-note {
+            background: #e8f5e9;
+            border-left: 4px solid var(--farmer-green);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        
+        .single-note i {
+            color: var(--farmer-green);
         }
     </style>
 </head>
@@ -688,6 +741,12 @@ $conn->close();
                             <?php if($pending_requests > 0): ?>
                             <span class="badge bg-warning float-end"><?php echo $pending_requests; ?></span>
                             <?php endif; ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="earnings.php">
+                            <i class="fas fa-wallet me-2"></i>
+                            Earnings Monitor
                         </a>
                     </li>
                     <li class="nav-item">
@@ -738,9 +797,9 @@ $conn->close();
                     </div>
                 </div>
 
-                <!-- Success/Error Messages -->
+                <!-- Success/Error Messages (Now using Toastr, but keep these for fallback) -->
                 <?php if($update_success): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="fas fa-check-circle me-2"></i>
                     Request status updated successfully! Admin will be notified.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -748,7 +807,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($update_error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     <?php echo $error_message; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -756,7 +815,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($product_added): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <div class="alert alert-success alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="fas fa-check-circle me-2"></i>
                     Product added to catalog successfully! It will be reviewed by admin.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -764,7 +823,7 @@ $conn->close();
                 <?php endif; ?>
                 
                 <?php if($product_error): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <div class="alert alert-danger alert-dismissible fade show" role="alert" style="display: none;">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     <?php echo $error_message; ?>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -860,6 +919,7 @@ $conn->close();
                                 <option value="Pending" <?php echo $status_filter == 'Pending' ? 'selected' : ''; ?>>Pending</option>
                                 <option value="Approved" <?php echo $status_filter == 'Approved' ? 'selected' : ''; ?>>Approved</option>
                                 <option value="Reviewed" <?php echo $status_filter == 'Reviewed' ? 'selected' : ''; ?>>Reviewed</option>
+                                <option value="Accepted" <?php echo $status_filter == 'Accepted' ? 'selected' : ''; ?>>Accepted</option>
                                 <option value="Rejected" <?php echo $status_filter == 'Rejected' ? 'selected' : ''; ?>>Rejected</option>
                                 <option value="Completed" <?php echo $status_filter == 'Completed' ? 'selected' : ''; ?>>Completed</option>
                             </select>
@@ -938,8 +998,9 @@ $conn->close();
                                                             case 'Pending': echo 'fa-clock'; break;
                                                             case 'Approved': echo 'fa-user-tie'; break;
                                                             case 'Reviewed': echo 'fa-eye'; break;
+                                                            case 'Accepted': echo 'fa-check-circle'; break;
                                                             case 'Rejected': echo 'fa-times-circle'; break;
-                                                            case 'Completed': echo 'fa-check-circle'; break;
+                                                            case 'Completed': echo 'fa-check-double'; break;
                                                             default: echo 'fa-circle';
                                                         }
                                                         ?> me-1">
@@ -984,7 +1045,11 @@ $conn->close();
                                                     <?php if($request['updated_at'] != $request['created_at']): ?>
                                                     <p class="mb-0">
                                                         <i class="fas fa-history me-1"></i>
-                                                        Updated: <?php echo date('M d, Y', strtotime($request['updated_at'])); ?>
+                                                        Last Updated: <?php echo date('M d, Y h:i A', strtotime($request['updated_at'])); ?>
+                                                    </p>
+                                                    <p class="mb-0 mt-2">
+                                                        <i class="fas fa-tag me-1" style="color: var(--farmer-green);"></i>
+                                                        Current Status: <strong><?php echo $request['status']; ?></strong>
                                                     </p>
                                                     <?php endif; ?>
                                                 </div>
@@ -1006,9 +1071,9 @@ $conn->close();
                                         <?php endif; ?>
                                         
                                         <?php if(!empty($request['admin_notes'])): ?>
-                                        <div class="notes-box">
+                                        <div class="single-note">
                                             <h6 class="mb-2">
-                                                <i class="fas fa-sticky-note me-2"></i> Admin Notes
+                                                <i class="fas fa-sticky-note me-2"></i> Latest Update
                                             </h6>
                                             <p class="mb-0 small">
                                                 <?php echo nl2br(htmlspecialchars($request['admin_notes'])); ?>
@@ -1023,18 +1088,22 @@ $conn->close();
                                                 <i class="fas fa-cogs me-2"></i> Farmer Actions
                                             </h6>
                                             
-                                            <?php if($request['status'] == 'Pending' || $request['status'] == 'Approved'): ?>
+                                            <!-- Always show update status button for all requests -->
                                             <div class="action-buttons mb-3">
-                                                <button type="button" class="btn btn-outline-success btn-sm" 
-                                                        data-bs-toggle="modal" data-bs-target="#addProductModal<?php echo $request['request_id']; ?>">
-                                                    <i class="fas fa-plus-circle me-1"></i> Add Product
+                                                <?php if($request['status'] == 'Pending' || $request['status'] == 'Approved'): ?>
+                                                <button type="button" class="btn btn-outline-success btn-sm w-100 mb-2" 
+                                                        onclick="openAddProductModal(<?php echo $request['request_id']; ?>)">
+                                                    <i class="fas fa-plus-circle me-1"></i> Add Product to Catalog
                                                 </button>
-                                                <button type="button" class="btn btn-outline-primary btn-sm" 
-                                                        data-bs-toggle="modal" data-bs-target="#updateStatusModal<?php echo $request['request_id']; ?>">
-                                                    <i class="fas fa-edit me-1"></i> Update Status
+                                                <?php endif; ?>
+                                                
+                                                <!-- Update Status Button - Always available for all statuses -->
+                                                <button type="button" class="btn btn-outline-primary btn-sm w-100 <?php echo ($request['status'] == 'Pending' || $request['status'] == 'Approved') ? '' : 'mt-2'; ?>" 
+                                                        onclick="openUpdateStatusModal(<?php echo $request['request_id']; ?>, '<?php echo $request['status']; ?>')">
+                                                    <i class="fas fa-edit me-1"></i> Update Status 
+                                                    (Current: <?php echo $request['status']; ?>)
                                                 </button>
                                             </div>
-                                            <?php endif; ?>
                                             
                                             <div class="timeline">
                                                 <div class="timeline-item">
@@ -1049,20 +1118,19 @@ $conn->close();
                                                 <?php if($request['status'] != 'Pending'): ?>
                                                 <div class="timeline-item">
                                                     <div class="timeline-date">
-                                                        <?php echo date('M d, Y', strtotime($request['updated_at'])); ?>
+                                                        <?php echo date('M d, Y h:i A', strtotime($request['updated_at'])); ?>
                                                     </div>
                                                     <div class="small">
-                                                        Status: <span class="fw-bold"><?php echo $request['status']; ?></span>
+                                                        Status updated to: <span class="fw-bold"><?php echo $request['status']; ?></span>
                                                     </div>
                                                 </div>
                                                 <?php endif; ?>
                                             </div>
                                             
                                             <div class="mt-3">
-                                                <!-- Quick add to products link -->
                                                 <a href="add_product.php?request_id=<?php echo $request['request_id']; ?>&product_name=<?php echo urlencode($request['product_name']); ?>&category=<?php echo urlencode($request['category']); ?>&description=<?php echo urlencode($request['description']); ?>" 
                                                    class="btn btn-outline-primary w-100 mb-2">
-                                                    <i class="fas fa-leaf me-2"></i> Quick Add Product
+                                                    <i class="fas fa-leaf me-2"></i> Quick Add to Products
                                                 </a>
                                                 
                                                 <?php if($request['status'] == 'Pending' || $request['status'] == 'Approved'): ?>
@@ -1075,149 +1143,27 @@ $conn->close();
                                                     <i class="fas fa-check-circle me-1"></i>
                                                     <small>Request completed successfully</small>
                                                 </div>
+                                                <?php elseif($request['status'] == 'Rejected'): ?>
+                                                <div class="alert alert-danger p-2 mb-0">
+                                                    <i class="fas fa-times-circle me-1"></i>
+                                                    <small>Request rejected</small>
+                                                </div>
+                                                <?php elseif($request['status'] == 'Reviewed'): ?>
+                                                <div class="alert alert-info p-2 mb-0">
+                                                    <i class="fas fa-eye me-1"></i>
+                                                    <small>Request reviewed</small>
+                                                </div>
+                                                <?php elseif($request['status'] == 'Accepted'): ?>
+                                                <div class="alert alert-primary p-2 mb-0">
+                                                    <i class="fas fa-check me-1"></i>
+                                                    <small>Request accepted</small>
+                                                </div>
                                                 <?php endif; ?>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Add Product Modal -->
-                            <div class="modal fade" id="addProductModal<?php echo $request['request_id']; ?>" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">
-                                                <i class="fas fa-plus-circle me-2"></i>
-                                                Add Product from Request
-                                            </h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <form method="POST">
-                                            <div class="modal-body">
-                                                <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                                <input type="hidden" name="add_product" value="1">
-                                                
-                                                <div class="alert alert-info">
-                                                    <i class="fas fa-info-circle me-2"></i>
-                                                    Adding this product will make it available in your catalog after admin approval.
-                                                </div>
-                                                
-                                                <div class="row">
-                                                    <div class="col-md-6">
-                                                        <div class="mb-3">
-                                                            <label for="product_name_<?php echo $request['request_id']; ?>" class="form-label">Product Name *</label>
-                                                            <input type="text" class="form-control" id="product_name_<?php echo $request['request_id']; ?>" 
-                                                                   name="product_name" value="<?php echo htmlspecialchars($request['product_name']); ?>" required>
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <div class="mb-3">
-                                                            <label for="category_<?php echo $request['request_id']; ?>" class="form-label">Category *</label>
-                                                            <select class="form-select" id="category_<?php echo $request['request_id']; ?>" name="category" required>
-                                                                <option value="">Select Category</option>
-                                                                <?php 
-                                                                $categories_query->data_seek(0);
-                                                                while($category = $categories_query->fetch_assoc()): 
-                                                                    $selected = $request['category'] == $category['category'] ? 'selected' : '';
-                                                                ?>
-                                                                <option value="<?php echo htmlspecialchars($category['category']); ?>" <?php echo $selected; ?>>
-                                                                    <?php echo htmlspecialchars($category['category']); ?>
-                                                                </option>
-                                                                <?php endwhile; ?>
-                                                            </select>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label for="description_<?php echo $request['request_id']; ?>" class="form-label">Description *</label>
-                                                    <textarea class="form-control" id="description_<?php echo $request['request_id']; ?>" 
-                                                              name="description" rows="3" required><?php echo htmlspecialchars($request['description']); ?></textarea>
-                                                </div>
-                                                
-                                                <div class="row">
-                                                    <div class="col-md-6">
-                                                        <div class="mb-3">
-                                                            <label for="price_<?php echo $request['request_id']; ?>" class="form-label">Price (Rs.) *</label>
-                                                            <input type="number" class="form-control" id="price_<?php echo $request['request_id']; ?>" 
-                                                                   name="price" min="1" step="0.01" required placeholder="Enter price per unit">
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <div class="mb-3">
-                                                            <label for="stock_<?php echo $request['request_id']; ?>" class="form-label">Initial Stock *</label>
-                                                            <input type="number" class="form-control" id="stock_<?php echo $request['request_id']; ?>" 
-                                                                   name="stock" min="1" value="<?php echo $request['quantity_requested']; ?>" required>
-                                                            <small class="text-muted">Based on requested quantity: <?php echo $request['quantity_requested']; ?></small>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary">
-                                                    <i class="fas fa-plus-circle me-2"></i> Add Product
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Update Status Modal -->
-                            <div class="modal fade" id="updateStatusModal<?php echo $request['request_id']; ?>" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">
-                                                <i class="fas fa-edit me-2"></i>
-                                                Update Request Status
-                                            </h5>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <form method="POST">
-                                            <div class="modal-body">
-                                                <input type="hidden" name="request_id" value="<?php echo $request['request_id']; ?>">
-                                                <input type="hidden" name="update_status" value="1">
-                                                
-                                                <div class="mb-3">
-                                                    <label for="status_<?php echo $request['request_id']; ?>" class="form-label">Status *</label>
-                                                    <select class="form-select" id="status_<?php echo $request['request_id']; ?>" name="status" required>
-                                                        <?php if($request['status'] == 'Pending'): ?>
-                                                        <option value="Reviewed" <?php echo $request['status'] == 'Reviewed' ? 'selected' : ''; ?>>Reviewed</option>
-                                                        <option value="Completed" <?php echo $request['status'] == 'Completed' ? 'selected' : ''; ?>>Completed</option>
-                                                        <?php elseif($request['status'] == 'Approved'): ?>
-                                                        <option value="Reviewed" <?php echo $request['status'] == 'Reviewed' ? 'selected' : ''; ?>>Reviewed</option>
-                                                        <option value="Completed" <?php echo $request['status'] == 'Completed' ? 'selected' : ''; ?>>Completed</option>
-                                                        <?php endif; ?>
-                                                        <option value="Rejected" <?php echo $request['status'] == 'Rejected' ? 'selected' : ''; ?>>Rejected</option>
-                                                    </select>
-                                                    <small class="text-muted">Admin will be notified of your update</small>
-                                                </div>
-                                                
-                                                <div class="mb-3">
-                                                    <label for="farmer_notes_<?php echo $request['request_id']; ?>" class="form-label">Your Notes</label>
-                                                    <textarea class="form-control" id="farmer_notes_<?php echo $request['request_id']; ?>" 
-                                                              name="farmer_notes" rows="3" 
-                                                              placeholder="Add any notes or comments about this request..."><?php 
-                                                        if($request['status'] == 'Rejected') echo "Unable to fulfill request. ";
-                                                        elseif($request['status'] == 'Completed') echo "Request fulfilled successfully. ";
-                                                    ?></textarea>
-                                                    <small class="text-muted">These notes will be visible to admin.</small>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                                <button type="submit" class="btn btn-primary">
-                                                    <i class="fas fa-save me-2"></i> Update Status
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            
                             <?php endwhile; ?>
                             
                             <?php else: ?>
@@ -1243,112 +1189,252 @@ $conn->close();
                         </div>
                     </div>
                 </div>
-                
-                <!-- Tips Section -->
-                <div class="row mt-4">
-                    <div class="col-12">
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal - Single instance -->
+    <div class="modal fade" id="addProductModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        Add Product from Request
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="addProductForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="request_id" id="add_request_id" value="">
+                        <input type="hidden" name="add_product" value="1">
+                        
                         <div class="alert alert-info">
-                            <div class="d-flex align-items-center">
-                                <div class="me-3">
-                                    <i class="fas fa-lightbulb fa-2x"></i>
+                            <i class="fas fa-info-circle me-2"></i>
+                            Adding this product will make it available in your catalog after admin approval.
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Product Name *</label>
+                                    <input type="text" class="form-control" name="product_name" id="add_product_name" required>
                                 </div>
-                                <div>
-                                    <h6 class="alert-heading mb-2">
-                                        <i class="fas fa-tips me-2"></i> Tips for Handling Requests
-                                    </h6>
-                                    <ul class="mb-0 small">
-                                        <li><strong>Respond quickly</strong> to high-priority requests assigned by admin</li>
-                                        <li><strong>Add requested products</strong> to your catalog to increase your product range</li>
-                                        <li><strong>Update status regularly</strong> to keep admin informed about progress</li>
-                                        <li><strong>Check for similar products</strong> before adding new ones to avoid duplicates</li>
-                                        <li><strong>Add detailed notes</strong> when updating status for better communication with admin</li>
-                                        <li><strong>Mark as 'Completed'</strong> when you have fulfilled the customer's request</li>
-                                    </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Category *</label>
+                                    <select class="form-select" name="category" id="add_category" required>
+                                        <option value="">Select Category</option>
+                                        <?php 
+                                        $categories_query->data_seek(0);
+                                        while($category = $categories_query->fetch_assoc()): 
+                                        ?>
+                                        <option value="<?php echo htmlspecialchars($category['category']); ?>">
+                                            <?php echo htmlspecialchars($category['category']); ?>
+                                        </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description *</label>
+                            <textarea class="form-control" name="description" id="add_description" rows="3" required></textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Price (Rs.) *</label>
+                                    <input type="number" class="form-control" name="price" min="1" step="0.01" required placeholder="Enter price">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Initial Stock *</label>
+                                    <input type="number" class="form-control" name="stock" id="add_stock" min="1" required>
+                                    <small class="text-muted" id="stock_quantity_text"></small>
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-plus-circle me-2"></i> Add Product
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Status Modal - Single instance -->
+    <div class="modal fade" id="updateStatusModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-edit me-2"></i>
+                        Update Request Status
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                
-                <!-- Footer -->
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="text-center text-muted small">
-                            <hr class="my-3">
-                            <p class="mb-0">
-                                <i class="fas fa-inbox me-1"></i> 
-                                Customer Requests Management • 
-                                <span class="mx-2">|</span> 
-                                <i class="fas fa-clock me-1"></i> 
-                                Pending/Approved: <?php echo $pending_requests; ?> requests • 
-                                <span class="mx-2">|</span> 
-                                <i class="fas fa-check-circle me-1"></i> 
-                                Completed: <?php echo $completed_requests; ?> requests
-                            </p>
+                <form method="POST" id="updateStatusForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="request_id" id="update_request_id" value="">
+                        <input type="hidden" name="update_status" value="1">
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Status *</label>
+                            <select class="form-select" name="status" id="update_status" required>
+                                <option value="Reviewed">Reviewed - I've reviewed this request</option>
+                                <option value="Accepted">Accepted - I've accepted this request</option>
+                                <option value="Completed">Completed - I've fulfilled this request</option>
+                                <option value="Rejected">Rejected - I cannot fulfill this request</option>
+                            </select>
+                            <small class="text-muted">Admin and customer will be notified of your update. You can change status anytime.</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Your Notes</label>
+                            <textarea class="form-control" name="farmer_notes" id="update_notes" rows="3" placeholder="Add any notes or comments about this request..."></textarea>
+                            <small class="text-muted">These notes will be visible to admin and customer</small>
                         </div>
                     </div>
-                </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i> Update Status
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
-        // Initialize tooltips
-        $(document).ready(function() {
-            // Add hover effect to cards
-            $('.requests-card, .stat-card, .request-item').hover(
-                function() {
-                    $(this).css('transform', 'translateY(-5px)');
-                },
-                function() {
-                    $(this).css('transform', 'translateY(0)');
-                }
-            );
-            
-            // Auto-dismiss alerts after 5 seconds
-            setTimeout(function() {
-                $('.alert').alert('close');
-            }, 5000);
-            
-            // Form validation for add product modal
-            $('form').on('submit', function(e) {
-                if ($(this).find('input[name="add_product"]').length > 0) {
-                    const price = $(this).find('input[name="price"]').val();
-                    const stock = $(this).find('input[name="stock"]').val();
-                    
-                    if (price <= 0) {
-                        e.preventDefault();
-                        alert('Price must be greater than 0!');
-                        return;
+        // Configure toastr
+        toastr.options = {
+            "closeButton": true,
+            "progressBar": true,
+            "positionClass": "toast-top-right",
+            "timeOut": "5000",
+            "extendedTimeOut": "2000",
+            "showEasing": "swing",
+            "hideEasing": "linear",
+            "showMethod": "fadeIn",
+            "hideMethod": "fadeOut"
+        };
+        
+        // Store request data in JavaScript object
+        var requestData = {};
+        
+        <?php 
+        $requests->data_seek(0);
+        while($request = $requests->fetch_assoc()): 
+        ?>
+        requestData[<?php echo $request['request_id']; ?>] = {
+            product_name: '<?php echo addslashes($request['product_name']); ?>',
+            category: '<?php echo addslashes($request['category']); ?>',
+            description: '<?php echo addslashes($request['description']); ?>',
+            quantity: <?php echo $request['quantity_requested']; ?>,
+            status: '<?php echo $request['status']; ?>'
+        };
+        <?php endwhile; ?>
+
+        function openAddProductModal(requestId) {
+            var data = requestData[requestId];
+            if (data) {
+                document.getElementById('add_request_id').value = requestId;
+                document.getElementById('add_product_name').value = data.product_name;
+                document.getElementById('add_category').value = data.category;
+                document.getElementById('add_description').value = data.description;
+                document.getElementById('add_stock').value = data.quantity;
+                document.getElementById('stock_quantity_text').innerHTML = 'Requested quantity: ' + data.quantity + ' kg';
+                
+                var modal = new bootstrap.Modal(document.getElementById('addProductModal'));
+                modal.show();
+            }
+        }
+
+        function openUpdateStatusModal(requestId, currentStatus) {
+            var data = requestData[requestId];
+            if (data) {
+                document.getElementById('update_request_id').value = requestId;
+                
+                // Reset form and set default to current status or Reviewed
+                var statusSelect = document.getElementById('update_status');
+                if (currentStatus && currentStatus !== 'Pending' && currentStatus !== 'Approved') {
+                    // Set to current status if it's one of our options
+                    if (currentStatus === 'Reviewed' || currentStatus === 'Accepted' || 
+                        currentStatus === 'Completed' || currentStatus === 'Rejected') {
+                        statusSelect.value = currentStatus;
+                    } else {
+                        statusSelect.value = 'Reviewed';
                     }
-                    
-                    if (stock < 1) {
-                        e.preventDefault();
-                        alert('Stock must be at least 1!');
-                        return;
-                    }
+                } else {
+                    statusSelect.value = 'Reviewed';
                 }
                 
-                if ($(this).find('input[name="update_status"]').length > 0) {
-                    const farmerNotes = $(this).find('textarea[name="farmer_notes"]').val().trim();
-                    const status = $(this).find('select[name="status"]').val();
-                    
-                    if (status === 'Rejected' && farmerNotes.length < 10) {
-                        e.preventDefault();
-                        alert('Please provide a reason (at least 10 characters) for rejecting this request.');
-                        return;
-                    }
+                document.getElementById('update_notes').value = '';
+                
+                var modal = new bootstrap.Modal(document.getElementById('updateStatusModal'));
+                modal.show();
+            }
+        }
+
+        $(document).ready(function() {
+            // Show success message if exists
+            <?php if($update_success): ?>
+            toastr.success('<?php echo addslashes($success_message); ?>', 'Success');
+            <?php endif; ?>
+            
+            <?php if($product_added): ?>
+            toastr.success('<?php echo addslashes($success_message); ?>', 'Success');
+            <?php endif; ?>
+            
+            <?php if($update_error || $product_error): ?>
+            toastr.error('<?php echo addslashes($error_message); ?>', 'Error');
+            <?php endif; ?>
+            
+            // Add product form validation
+            $('#addProductForm').on('submit', function(e) {
+                var price = $(this).find('input[name="price"]').val();
+                var stock = $(this).find('input[name="stock"]').val();
+                
+                if (price <= 0) {
+                    e.preventDefault();
+                    toastr.error('Price must be greater than 0!', 'Validation Error');
+                    return false;
                 }
+                
+                if (stock < 1) {
+                    e.preventDefault();
+                    toastr.error('Stock must be at least 1!', 'Validation Error');
+                    return false;
+                }
+                
+                return true;
             });
             
-            // Auto-fill price based on similar products
-            $('input[name="price"]').on('focus', function() {
-                if (!$(this).val()) {
-                    // Suggest price based on similar products
-                    $(this).val('500.00');
+            // Update status form validation
+            $('#updateStatusForm').on('submit', function(e) {
+                var status = $(this).find('select[name="status"]').val();
+                var notes = $(this).find('textarea[name="farmer_notes"]').val().trim();
+                
+                if (status === 'Rejected' && notes.length < 10) {
+                    e.preventDefault();
+                    toastr.error('Please provide a reason for rejection (at least 10 characters)', 'Validation Error');
+                    return false;
                 }
+                
+                return true;
             });
         });
     </script>

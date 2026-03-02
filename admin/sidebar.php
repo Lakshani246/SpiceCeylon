@@ -51,8 +51,8 @@ if($result) {
         </a>
         
         <!-- Add this line for notifications page (optional) -->
-        <a class="nav-link <?php echo $current_page == 'view_notifications.php' ? 'active' : ''; ?>" 
-           href="view_notifications.php">
+        <a class="nav-link <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>" 
+           href="notifications.php">
             <i class="fas fa-bell me-2"></i>Notifications
         </a>
         
