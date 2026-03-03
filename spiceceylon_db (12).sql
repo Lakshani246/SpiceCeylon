@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 01, 2026 at 08:23 PM
+-- Generation Time: Mar 03, 2026 at 05:17 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -105,7 +105,9 @@ CREATE TABLE `announcements` (
 
 INSERT INTO `announcements` (`announcement_id`, `title`, `message`, `target_roles`, `target_user_id`, `created_by`, `is_important`, `expires_at`, `announcement_type`, `status`, `created_at`, `updated_at`) VALUES
 (1, 'system maintenance', 'system maintenace scheduled for 27th feb', 'all', NULL, 1, 0, '2026-02-27 23:59:59', 'maintenance', 'active', '2026-02-25 04:21:30', '2026-02-25 04:21:30'),
-(2, 'system maintenance', 'system maintenace scheduled for 27th feb', 'all', NULL, 1, 0, '2026-02-27 23:59:59', 'maintenance', 'active', '2026-02-25 04:21:38', '2026-02-25 04:21:38');
+(2, 'system maintenance', 'system maintenace scheduled for 27th feb', 'all', NULL, 1, 0, '2026-02-27 23:59:59', 'maintenance', 'active', '2026-02-25 04:21:38', '2026-02-25 04:21:38'),
+(3, 'Delivery Delays Due to Weather', 'Dear Customers,\r\n\r\nDue to recent weather conditions in the central province, deliveries to Kandy, Nuwara Eliya, and surrounding areas may be delayed by 1-2 business days.\r\n\r\nWe\'re working closely with our delivery partners to ensure your spices reach you as soon as possible. Thank you for your understanding.\r\n\r\nStay safe!\r\nSpiceCeylon Team', 'customers', NULL, 1, 1, '2026-03-10 23:59:59', 'alert', 'active', '2026-03-02 17:02:54', '2026-03-02 17:02:54'),
+(4, ' Product Upload Guidelines Update', 'Dear Farmers,\r\n\r\nWe\'ve updated our product upload guidelines. Please ensure:\r\n✅ High-quality photos (minimum 800x600)\r\n✅ Accurate product descriptions\r\n✅ Updated stock levels\r\n✅ Competitive pricing\r\n\r\nProducts with incomplete information will not be approved. Check your dashboard for pending products.\r\n\r\nThank you for your cooperation!\r\nAdmin Team', 'farmers', NULL, 1, 1, '2026-03-10 23:59:59', 'update', 'active', '2026-03-02 17:07:57', '2026-03-02 17:07:57');
 
 -- --------------------------------------------------------
 
@@ -148,7 +150,9 @@ CREATE TABLE `cart` (
 --
 
 INSERT INTO `cart` (`cart_id`, `customer_id`, `product_id`, `quantity`, `added_at`, `price`, `package_size`, `total_price`, `updated_at`) VALUES
-(34, 1, 10, 1, '2026-03-01 14:44:42', 340.00, '1kg', 340.00, '2026-03-01 14:44:42');
+(34, 1, 10, 1, '2026-03-01 14:44:42', 340.00, '1kg', 340.00, '2026-03-01 14:44:42'),
+(35, 1, 31, 4, '2026-03-03 08:21:57', 58.00, '100g', 232.00, '2026-03-03 08:24:59'),
+(36, 1, 4, 1, '2026-03-03 08:23:49', 750.00, '1kg', 750.00, '2026-03-03 08:23:49');
 
 -- --------------------------------------------------------
 
@@ -244,7 +248,8 @@ CREATE TABLE `messages` (
 INSERT INTO `messages` (`id`, `sender_id`, `sender_role`, `receiver_id`, `receiver_role`, `subject`, `message`, `related_order_id`, `related_product_id`, `is_read`, `created_at`) VALUES
 (1, 1, 'admin', 1, 'customer', 'Order #2 Confirmed', 'Your order has been confirmed and will be shipped soon.', NULL, NULL, 0, '2026-01-16 16:25:21'),
 (3, 1, 'customer', 1, 'customer', 'Re: Order #2 Confirmed', 'thank you for the confirmation.', NULL, NULL, 0, '2026-02-26 14:36:31'),
-(11, 2, 'farmer', 1, 'customer', 'Regarding your request: pandan leaves', 'can I know the exact date product need to be delivered?', NULL, NULL, 0, '2026-02-28 15:11:59');
+(11, 2, 'farmer', 1, 'customer', 'Regarding your request: pandan leaves', 'can I know the exact date product need to be delivered?', NULL, NULL, 0, '2026-02-28 15:11:59'),
+(12, 1, 'admin', 2, 'farmer', 'regarding the address changed ', 'because of the location address changed we need a confirmation letter for the verification to add the new location to the google map.', NULL, NULL, 0, '2026-03-02 16:40:40');
 
 -- --------------------------------------------------------
 
@@ -304,7 +309,8 @@ INSERT INTO `notifications` (`notification_id`, `title`, `message`, `target_role
 (12, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:41:58'),
 (13, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:42:20'),
 (14, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:48:52'),
-(15, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:49:12');
+(15, 'Request Status Update', 'Your request for \'pandan leaves\' has been updated to: Accepted. ', 'specific', 1, 2, 'farmer', 0, NULL, '2026-03-01 18:49:12'),
+(16, 'Password Security Update', 'Dear Users,\r\n\r\nTo enhance your account security, we\'re implementing two-factor authentication (2FA). \r\n\r\nPlease update your password and enable 2FA in your profile settings within the next 7 days.\r\n\r\nStay safe,\r\nSpiceCeylon Security Team', 'all', NULL, 1, 'admin', 1, NULL, '2026-03-02 17:18:47');
 
 -- --------------------------------------------------------
 
@@ -345,7 +351,7 @@ INSERT INTO `orders` (`order_id`, `customer_id`, `total`, `total_amount`, `shipp
 (5, 1, NULL, 8500.00, 200.00, 8700.00, 'ishara', '0352234657', 'colombo,srilanka', 'colombo', '1234', 'credit_card', 'pending', '2 packs for travel', '', 'Processing', 0, '2025-12-05 13:33:02', '2025-12-05 13:33:02', '2026-02-24 18:03:57'),
 (6, 1, NULL, 840.00, 200.00, 1040.00, 'ishara', '12345', 'colombo', 'colombo', '21345', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:54:53', '2025-12-05 13:54:53', '2026-02-28 15:18:58'),
 (7, 1, NULL, 1600.00, 200.00, 1928.00, 'sripali', '0762541960', 'debathgama,kegalle', 'kegalle', '71000', 'cash_on_delivery', 'pending', 'no.', '', 'Confirmed', 0, '2025-12-24 13:56:54', '2025-12-24 13:56:54', '2026-02-28 14:50:21'),
-(8, 1, NULL, 1870.00, 200.00, 2219.60, 'sripali', '0761234567', 'debathgama,kegalle', 'kandy', '12345', 'cash_on_delivery', 'pending', '', NULL, 'Pending', 0, '2026-02-26 16:08:08', '2026-02-26 16:08:08', '2026-02-26 16:08:08'),
+(8, 1, NULL, 1870.00, 200.00, 2219.60, 'sripali', '0761234567', 'debathgama,kegalle', 'kandy', '12345', 'cash_on_delivery', 'pending', '', '', 'Delivered', 0, '2026-02-26 16:08:08', '2026-02-26 16:08:08', '2026-03-03 08:45:54'),
 (9, 1, NULL, 2130.00, 200.00, 2500.40, 'sripali', '0761234567', 'debathgama,kegalle', 'maharagama', '10230', 'cash_on_delivery', 'pending', '', '', 'Shipped', 0, '2026-02-28 16:01:46', '2026-02-28 16:01:46', '2026-02-28 16:07:30');
 
 -- --------------------------------------------------------
@@ -416,7 +422,8 @@ INSERT INTO `order_status_history` (`history_id`, `order_id`, `status`, `changed
 (12, 6, 'Confirmed', 1, '', '2026-02-28 15:18:58'),
 (13, 2, 'Completed', 1, '', '2026-02-28 15:19:33'),
 (14, 2, 'Confirmed', 1, '', '2026-02-28 15:19:40'),
-(15, 9, 'Shipped', 1, '', '2026-02-28 16:07:30');
+(15, 9, 'Shipped', 1, '', '2026-02-28 16:07:30'),
+(16, 8, 'Delivered', 1, '', '2026-03-03 08:45:54');
 
 -- --------------------------------------------------------
 
@@ -558,7 +565,7 @@ CREATE TABLE `products` (
 --
 
 INSERT INTO `products` (`product_id`, `farmer_id`, `name`, `description`, `category`, `price`, `stock`, `image`, `status`, `created_at`, `admin_approved`, `approved_by`, `approved_at`, `rejection_reason`) VALUES
-(1, 2, 'Cinnamon- කුරුඳු (Kurundu)', 'Sweet and aromatic Ceylon cinnamon bark, true cinnamon with delicate flavor.', 'Whole Spices', 450.00, 200, 'cinnamon.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:26:58', NULL),
+(1, 2, 'Cinnamon- කුරුඳු (Kurundu)', 'Sweet and aromatic Ceylon cinnamon bark, true cinnamon with delicate flavor.', 'Whole Spices', 470.00, 170, 'cinnamon.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2026-03-02 18:53:14', NULL),
 (2, 2, 'Cardamom - එනසාල් (Enasal)\r\n\r\n', 'Aromatic green cardamom pods with intense flavor and medicinal properties.', 'Whole Spices', 1260.00, 124, 'cardamom.jpg', 'Pending', '2025-11-23 11:14:12', 'pending', 1, '2025-12-23 18:36:24', NULL),
 (3, 2, 'Cloves- කරාබුනැටි (Karabu Nati)\r\n\r\n', 'Aromatic flower buds with warm, sweet flavor, perfect for meat dishes and teas.', 'Whole Spices', 890.00, 120, 'cloves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:16', NULL),
 (4, 3, 'Nutmeg - සාදික්කා (Sadikka)', 'Warm, nutty spice perfect for both sweet and savory dishes, freshly ground.', 'Whole Spices', 750.00, 95, 'nutmeg.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:59', NULL),
@@ -629,7 +636,7 @@ CREATE TABLE `product_requests` (
 
 INSERT INTO `product_requests` (`request_id`, `customer_id`, `product_name`, `category`, `description`, `quantity_requested`, `urgency`, `status`, `admin_notes`, `created_at`, `updated_at`, `assigned_farmer_id`) VALUES
 (1, 1, 'pandan leaves', 'Leaves & Herbs', 'need for overseas travelling.', 1, 'High', '', '[Farmer Update: 2026-03-01 19:49:12 - Status changed to: Accepted]', '2025-12-24 10:32:45', '2026-03-01 18:49:12', 2),
-(2, 1, 'vanilla', 'Specialty Spices', 'need dried vanilla 10kg', 10, 'Medium', 'Pending', NULL, '2026-01-22 19:58:25', NULL, NULL),
+(2, 1, 'vanilla', 'Specialty Spices', 'need dried vanilla 10kg', 10, 'Medium', 'Approved', NULL, '2026-01-22 19:58:25', '2026-03-02 16:44:33', 2),
 (3, 1, 'turmeric', 'Roots & Bulbs', 'need for shop', 5, 'Medium', 'Approved', NULL, '2026-01-22 19:59:52', '2026-01-22 20:15:33', 3),
 (4, 1, 'Cinnoman', 'Whole Spices', 'can i get the Cinnamon powders 2kg?', 2, 'Low', 'Pending', NULL, '2026-02-26 15:41:31', NULL, NULL);
 
@@ -694,7 +701,8 @@ CREATE TABLE `request_history` (
 
 INSERT INTO `request_history` (`history_id`, `request_id`, `changed_by_admin`, `old_status`, `new_status`, `notes`, `changed_at`) VALUES
 (1, 1, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-01-22 19:49:52'),
-(2, 3, 1, 'Pending', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-01-22 20:15:33');
+(2, 3, 1, 'Pending', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-01-22 20:15:33'),
+(7, 2, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-03-02 16:44:34');
 
 -- --------------------------------------------------------
 
@@ -870,10 +878,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `name`, `email`, `password`, `phone`, `address`, `role`, `farm_location`, `profile_image`, `is_registered`, `created_at`, `status`, `email_notifications`, `push_notifications`, `last_notification_check`) VALUES
-(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0761234567', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active', 1, 1, '2026-03-01 19:23:29'),
-(2, 'dilshani', 'd@gmail.com', '$2y$10$L4aUm6Xtp59TDz.YI09bO.rgZn0XlB8GWF/KWzeUtfn1AydINuQ52', '0523465789', '143/B/, 1st Ln, Dehianga, Nuwara Eliya', 'farmer', 'kandy / Nuwara Eliya', 'default-avatar.jpg', 1, '2025-11-15 07:48:09', 'active', 1, 1, '2026-03-01 14:46:45'),
+(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0761234567', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active', 1, 1, '2026-03-03 08:19:36'),
+(2, 'dilshani', 'd@gmail.com', '$2y$10$L4aUm6Xtp59TDz.YI09bO.rgZn0XlB8GWF/KWzeUtfn1AydINuQ52', '0523465789', '143/B/, 1st Ln, Dehianga, Nuwara Eliya', 'farmer', 'kandy / Nuwara Eliya', 'default-avatar.jpg', 1, '2025-11-15 07:48:09', 'active', 1, 1, '2026-03-03 12:34:13'),
 (3, 'ranjith edirisinghe', 'r@gmail.com', '$2y$10$W7hhU7TOf4g7vZOlwg7sbeolMA5fQ0mH.m15aDuYICLEv8SGFq8CO', '0352258339', 'nuwaraeliya', 'farmer', 'nuwaraeliya', 'default-avatar.jpg', 1, '2025-12-23 13:03:52', 'active', 1, 1, NULL),
-(5, 'Peter Smith', 'peter@gmail.com', '$2y$10$ELuqYyfTpHBXpbdHHQayXuRzJsV2LpWLOT.n.ElQw8ChDa18PR6gW', '0777346982', 'no 07, main street, Colombo', 'customer', '', 'default-avatar.jpg', 1, '2026-02-23 09:37:09', 'pending', 1, 1, NULL);
+(5, 'Peter Smith', 'peter@gmail.com', '$2y$10$ELuqYyfTpHBXpbdHHQayXuRzJsV2LpWLOT.n.ElQw8ChDa18PR6gW', '0777346982', 'no 07, main street, Colombo', 'customer', '', 'user_5_1772457313.jpg', 1, '2026-02-23 09:37:09', 'pending', 1, 1, '2026-03-02 13:29:58');
 
 -- --------------------------------------------------------
 
@@ -900,7 +908,10 @@ INSERT INTO `user_announcement_status` (`status_id`, `announcement_id`, `user_id
 (3, 1, 3, 0, NULL, '2026-02-25 04:21:30'),
 (4, 2, 1, 1, '2026-02-25 12:18:37', '2026-02-25 04:21:38'),
 (5, 2, 2, 0, NULL, '2026-02-25 04:21:38'),
-(6, 2, 3, 0, NULL, '2026-02-25 04:21:38');
+(6, 2, 3, 0, NULL, '2026-02-25 04:21:38'),
+(7, 3, 1, 0, NULL, '2026-03-02 17:02:54'),
+(8, 4, 2, 0, NULL, '2026-03-02 17:07:57'),
+(9, 4, 3, 0, NULL, '2026-03-02 17:07:57');
 
 -- --------------------------------------------------------
 
@@ -952,7 +963,10 @@ INSERT INTO `user_notification_status` (`status_id`, `notification_id`, `user_id
 (4, 4, 1, 1, '2026-02-25 12:10:35', '2026-02-25 12:10:35'),
 (5, 1, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
 (6, 2, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
-(7, 5, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39');
+(7, 5, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
+(8, 16, 1, 0, NULL, '2026-03-02 17:18:48'),
+(9, 16, 2, 0, NULL, '2026-03-02 17:18:48'),
+(10, 16, 3, 0, NULL, '2026-03-02 17:18:48');
 
 -- --------------------------------------------------------
 
@@ -1036,7 +1050,8 @@ CREATE TABLE `wishlist` (
 --
 
 INSERT INTO `wishlist` (`wishlist_id`, `customer_id`, `product_id`, `created_at`) VALUES
-(1, 1, 1, '2025-12-26 13:17:36');
+(1, 1, 1, '2025-12-26 13:17:36'),
+(10, 1, 11, '2026-03-03 08:24:11');
 
 -- --------------------------------------------------------
 
@@ -1350,7 +1365,7 @@ ALTER TABLE `admin_logins`
 -- AUTO_INCREMENT for table `announcements`
 --
 ALTER TABLE `announcements`
-  MODIFY `announcement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `announcement_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `banners`
@@ -1362,7 +1377,7 @@ ALTER TABLE `banners`
 -- AUTO_INCREMENT for table `cart`
 --
 ALTER TABLE `cart`
-  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
 
 --
 -- AUTO_INCREMENT for table `contact_info`
@@ -1386,7 +1401,7 @@ ALTER TABLE `forecast_data`
 -- AUTO_INCREMENT for table `messages`
 --
 ALTER TABLE `messages`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
 
 --
 -- AUTO_INCREMENT for table `messages_new`
@@ -1398,7 +1413,7 @@ ALTER TABLE `messages_new`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `notification_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `orders`
@@ -1416,7 +1431,7 @@ ALTER TABLE `order_items`
 -- AUTO_INCREMENT for table `order_status_history`
 --
 ALTER TABLE `order_status_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=16;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `page_content`
@@ -1470,7 +1485,7 @@ ALTER TABLE `requests`
 -- AUTO_INCREMENT for table `request_history`
 --
 ALTER TABLE `request_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
 -- AUTO_INCREMENT for table `request_notifications`
@@ -1518,19 +1533,19 @@ ALTER TABLE `team_members`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `user_announcement_status`
 --
 ALTER TABLE `user_announcement_status`
-  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `user_notification_status`
 --
 ALTER TABLE `user_notification_status`
-  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `status_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `website_content`
@@ -1554,7 +1569,7 @@ ALTER TABLE `website_stats`
 -- AUTO_INCREMENT for table `wishlist`
 --
 ALTER TABLE `wishlist`
-  MODIFY `wishlist_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `wishlist_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- Constraints for dumped tables
