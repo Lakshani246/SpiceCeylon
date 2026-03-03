@@ -66,7 +66,7 @@ $filtered_sales_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $filtered_sales_query->execute();
 $filtered_stats = $filtered_sales_query->get_result()->fetch_assoc();
 
-// Get daily sales for chart (last 30 days) - FIXED QUERY
+// Get daily sales for chart (based on filter range)
 $daily_sales_query = $conn->prepare("
     SELECT 
         DATE(o.created_at) as sale_date,
@@ -78,11 +78,11 @@ $daily_sales_query = $conn->prepare("
     JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
     AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped')
-    AND DATE(o.created_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+    AND DATE(o.created_at) BETWEEN ? AND ?
     GROUP BY DATE(o.created_at)
     ORDER BY sale_date
 ");
-$daily_sales_query->bind_param("i", $farmer_id);
+$daily_sales_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $daily_sales_query->execute();
 $daily_sales_result = $daily_sales_query->get_result();
 
@@ -98,12 +98,9 @@ while ($row = $daily_sales_result->fetch_assoc()) {
 
 // If no daily data, create default empty arrays
 if (empty($daily_sales_labels)) {
-    for ($i = 29; $i >= 0; $i--) {
-        $date = date('Y-m-d', strtotime("-$i days"));
-        $daily_sales_labels[] = date('M j', strtotime($date));
-        $daily_sales_values[] = 0;
-        $daily_orders_values[] = 0;
-    }
+    $daily_sales_labels[] = 'No Data';
+    $daily_sales_values[] = 0;
+    $daily_orders_values[] = 0;
 }
 
 // Get monthly sales for chart (last 12 months) - FIXED QUERY
@@ -162,11 +159,12 @@ $top_products_query = $conn->prepare("
     LEFT JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
     AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing') OR o.status IS NULL)
+    AND (o.created_at BETWEEN ? AND ? OR o.created_at IS NULL)
     GROUP BY p.product_id
     ORDER BY total_revenue DESC, total_sold DESC
     LIMIT 10
 ");
-$top_products_query->bind_param("i", $farmer_id);
+$top_products_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $top_products_query->execute();
 $top_products_result = $top_products_query->get_result();
 
@@ -182,11 +180,12 @@ $category_sales_query = $conn->prepare("
     LEFT JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
     AND (o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing') OR o.status IS NULL)
+    AND (o.created_at BETWEEN ? AND ? OR o.created_at IS NULL)
     GROUP BY p.category
     HAVING category_sales > 0
     ORDER BY category_sales DESC
 ");
-$category_sales_query->bind_param("i", $farmer_id);
+$category_sales_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $category_sales_query->execute();
 $category_sales_result = $category_sales_query->get_result();
 
@@ -208,10 +207,11 @@ $recent_sales_query = $conn->prepare("
     JOIN users u ON o.customer_id = u.user_id
     WHERE p.farmer_id = ? 
     AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped', 'Processing')
+    AND DATE(o.created_at) BETWEEN ? AND ?
     ORDER BY o.created_at DESC
     LIMIT 20
 ");
-$recent_sales_query->bind_param("i", $farmer_id);
+$recent_sales_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $recent_sales_query->execute();
 $recent_sales_result = $recent_sales_query->get_result();
 
@@ -227,10 +227,11 @@ $weekly_pattern_query = $conn->prepare("
     JOIN orders o ON oi.order_id = o.order_id
     WHERE p.farmer_id = ? 
     AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped')
+    AND DATE(o.created_at) BETWEEN ? AND ?
     GROUP BY DAYOFWEEK(o.created_at), DAYNAME(o.created_at)
     ORDER BY day_num
 ");
-$weekly_pattern_query->bind_param("i", $farmer_id);
+$weekly_pattern_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $weekly_pattern_query->execute();
 $weekly_pattern_result = $weekly_pattern_query->get_result();
 
@@ -250,8 +251,9 @@ $customer_count_query = $conn->prepare("
     JOIN products p ON oi.product_id = p.product_id
     WHERE p.farmer_id = ? 
     AND o.status IN ('Completed', 'Delivered', 'Confirmed', 'Shipped')
+    AND DATE(o.created_at) BETWEEN ? AND ?
 ");
-$customer_count_query->bind_param("i", $farmer_id);
+$customer_count_query->bind_param("iss", $farmer_id, $start_date, $end_date);
 $customer_count_query->execute();
 $customer_count_result = $customer_count_query->get_result();
 $customer_count = $customer_count_result->fetch_assoc();
@@ -357,55 +359,25 @@ $all_time_sales_query->execute();
 $all_time_sales_result = $all_time_sales_query->get_result();
 $all_time_sales = $all_time_sales_result->fetch_assoc();
 
-// ===== DEBUG INFORMATION =====
-// Get actual sales data to verify
-$debug_sales_query = $conn->prepare("
-    SELECT 
-        o.order_id,
-        o.created_at,
-        o.status,
-        p.name as product_name,
-        p.farmer_id,
-        oi.quantity,
-        oi.price,
-        oi.total_price
-    FROM orders o
-    JOIN order_items oi ON o.order_id = oi.order_id
-    JOIN products p ON oi.product_id = p.product_id
-    WHERE p.farmer_id = ?
-    ORDER BY o.created_at DESC
-    LIMIT 10
-");
-$debug_sales_query->bind_param("i", $farmer_id);
-$debug_sales_query->execute();
-$debug_sales_result = $debug_sales_query->get_result();
-
-// Debug output
-$debug_data = [];
-while ($row = $debug_sales_result->fetch_assoc()) {
-    $debug_data[] = $row;
-}
-
-// Check which products belong to this farmer
-$debug_products_query = $conn->prepare("
-    SELECT product_id, name, category, stock, price
-    FROM products 
-    WHERE farmer_id = ?
-    AND status = 'Approved'
-    LIMIT 10
-");
-$debug_products_query->bind_param("i", $farmer_id);
-$debug_products_query->execute();
-$debug_products_result = $debug_products_query->get_result();
-
-$farmer_products = [];
-while ($row = $debug_products_result->fetch_assoc()) {
-    $farmer_products[] = $row;
-}
-
 // Get today's date for display
 $today = date('l, F j, Y');
 $current_time = date('h:i A');
+
+// Store category data for JavaScript
+$category_labels = [];
+$category_data = [];
+$category_colors = [
+    '#27ae60', '#3498db', '#f39c12', '#e74c3c', '#9b59b6',
+    '#1abc9c', '#d35400', '#c0392b', '#16a085', '#8e44ad'
+];
+
+if ($category_sales_result->num_rows > 0) {
+    $category_sales_result->data_seek(0);
+    while ($cat = $category_sales_result->fetch_assoc()) {
+        $category_labels[] = $cat['category'];
+        $category_data[] = (float)$cat['category_sales'];
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -417,6 +389,9 @@ $current_time = date('h:i A');
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Add jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <style>
         :root {
             --farmer-green: #27ae60;
@@ -619,7 +594,7 @@ $current_time = date('h:i A');
             border-radius: 8px;
             margin-bottom: 20px;
             font-size: 14px;
-            display: none; /* Hide by default, use Ctrl+D to show */
+            display: none;
             border-left: 4px solid #e74c3c;
         }
         
@@ -630,6 +605,51 @@ $current_time = date('h:i A');
             border-radius: 5px;
             margin-bottom: 10px;
             font-size: 12px;
+        }
+        
+        .export-btn-group {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .export-dropdown-content {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: white;
+            min-width: 160px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            z-index: 1000;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .export-dropdown:hover .export-dropdown-content {
+            display: block;
+        }
+        
+        .export-dropdown-content a {
+            color: var(--farmer-dark);
+            padding: 12px 16px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s;
+        }
+        
+        .export-dropdown-content a:hover {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .export-dropdown-content a i {
+            width: 20px;
         }
     </style>
 </head>
@@ -684,12 +704,6 @@ $current_time = date('h:i A');
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="forecasting.php">
-                            <i class="fas fa-chart-bar me-2"></i>
-                            Sales Forecasting
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="profile.php">
                             <i class="fas fa-user me-2"></i>
                             My Profile
@@ -713,84 +727,6 @@ $current_time = date('h:i A');
 
             <!-- Main Content -->
             <div class="col-md-10 p-4" style="background: #f8f9fa; min-height: 100vh;">
-                <!-- Debug Info (Press Ctrl+D to show) -->
-                <div class="debug-info">
-                    <h6><i class="fas fa-bug me-2"></i> Debug Information</h6>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <strong>Farmer Information:</strong><br>
-                            Farmer ID: <?php echo $farmer_id; ?><br>
-                            Name: <?php echo htmlspecialchars($farmer_name); ?><br>
-                            Email: <?php echo htmlspecialchars($farmer['email']); ?>
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Sales Stats:</strong><br>
-                            Total Sales: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?><br>
-                            Filtered Sales: Rs. <?php echo number_format($filtered_stats['filtered_sales'] ?? 0, 2); ?><br>
-                            Total Orders: <?php echo $total_stats['total_orders'] ?? 0; ?>
-                        </div>
-                        <div class="col-md-4">
-                            <strong>Query Results:</strong><br>
-                            Top Products: <?php echo $top_products_result->num_rows; ?> found<br>
-                            Recent Sales: <?php echo $recent_sales_result->num_rows; ?> found<br>
-                            Category Sales: <?php echo $category_sales_result->num_rows; ?> found
-                        </div>
-                    </div>
-                    
-                    <div class="mt-3">
-                        <button class="btn btn-sm btn-secondary" onclick="toggleDataTest()">
-                            <i class="fas fa-eye me-1"></i> Show/Hide Test Data
-                        </button>
-                    </div>
-                    
-                    <div class="data-test mt-3" style="display: none;">
-                        <strong>Farmer's Products (Approved):</strong><br>
-                        <?php if(!empty($farmer_products)): ?>
-                            <div class="row">
-                                <?php foreach($farmer_products as $product): ?>
-                                <div class="col-md-3">
-                                    <?php echo htmlspecialchars($product['name']); ?> 
-                                    (Rs. <?php echo number_format($product['price'], 2); ?>)
-                                </div>
-                                <?php endforeach; ?>
-                            </div>
-                        <?php else: ?>
-                            No approved products found for this farmer
-                        <?php endif; ?>
-                        
-                        <hr>
-                        <strong>Recent Sales Data:</strong><br>
-                        <?php if(!empty($debug_data)): ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Order ID</th>
-                                            <th>Date</th>
-                                            <th>Product</th>
-                                            <th>Qty</th>
-                                            <th>Total</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach($debug_data as $sale): ?>
-                                        <tr>
-                                            <td>#<?php echo $sale['order_id']; ?></td>
-                                            <td><?php echo date('M d', strtotime($sale['created_at'])); ?></td>
-                                            <td><?php echo htmlspecialchars($sale['product_name']); ?></td>
-                                            <td><?php echo $sale['quantity']; ?></td>
-                                            <td>Rs. <?php echo number_format($sale['total_price'], 2); ?></td>
-                                        </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            No sales data found for this farmer
-                        <?php endif; ?>
-                    </div>
-                </div>
-
                 <!-- Header -->
                 <div class="dashboard-header">
                     <div class="d-flex justify-content-between align-items-center">
@@ -821,7 +757,7 @@ $current_time = date('h:i A');
                         <i class="fas fa-filter me-2" style="color: var(--farmer-blue);"></i>
                         Filter Sales Data
                     </h5>
-                    <form method="GET" class="row g-3 align-items-end">
+                    <form method="GET" class="row g-3 align-items-end" id="filterForm">
                         <div class="col-md-3">
                             <label for="start_date" class="form-label">Start Date</label>
                             <input type="date" class="form-control" id="start_date" name="start_date" 
@@ -840,9 +776,19 @@ $current_time = date('h:i A');
                                 <a href="my_sales.php" class="btn btn-outline-secondary">
                                     <i class="fas fa-redo me-1"></i> Reset
                                 </a>
-                                <button type="button" class="btn btn-outline-success" onclick="exportData()">
-                                    <i class="fas fa-download me-1"></i> Export Data
-                                </button>
+                                <div class="export-dropdown">
+                                    <button class="btn btn-success" type="button">
+                                        <i class="fas fa-download me-1"></i> Export <i class="fas fa-caret-down ms-1"></i>
+                                    </button>
+                                    <div class="export-dropdown-content">
+                                        <a href="#" onclick="exportToCSV(); return false;">
+                                            <i class="fas fa-file-csv text-success"></i> Export as CSV
+                                        </a>
+                                        <a href="#" onclick="exportToPDF(); return false;">
+                                            <i class="fas fa-file-pdf text-danger"></i> Export as PDF
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="col-md-2 text-end">
@@ -959,7 +905,7 @@ $current_time = date('h:i A');
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <h5 class="mb-0">
                                     <i class="fas fa-chart-area me-2" style="color: var(--farmer-green);"></i>
-                                    Daily Sales Trend (Last 30 Days)
+                                    Daily Sales Trend (<?php echo date('M d', strtotime($start_date)); ?> - <?php echo date('M d', strtotime($end_date)); ?>)
                                 </h5>
                                 <div class="btn-group btn-group-sm">
                                     <button class="btn btn-outline-primary active" onclick="showDailyChart()">
@@ -981,7 +927,7 @@ $current_time = date('h:i A');
                         <div class="analytics-card h-100">
                             <h5 class="mb-3">
                                 <i class="fas fa-chart-bar me-2" style="color: var(--farmer-blue);"></i>
-                                Monthly Performance
+                                Monthly Performance (Last 12 Months)
                             </h5>
                             <div class="chart-container">
                                 <canvas id="monthlySalesChart"></canvas>
@@ -1009,8 +955,8 @@ $current_time = date('h:i A');
                                 $rank = 1;
                                 $top_products_result->data_seek(0);
                                 while($product = $top_products_result->fetch_assoc()): 
-                                    $percentage = ($total_stats['total_sales'] ?? 0) > 0 ? 
-                                        ($product['total_revenue'] / $total_stats['total_sales']) * 100 : 0;
+                                    $percentage = ($filtered_stats['filtered_sales'] ?? 0) > 0 ? 
+                                        ($product['total_revenue'] / $filtered_stats['filtered_sales']) * 100 : 0;
                             ?>
                             <div class="product-performance">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -1037,7 +983,7 @@ $current_time = date('h:i A');
                                     <div class="text-end">
                                         <small class="text-muted">
                                             <i class="fas fa-chart-pie me-1"></i>
-                                            <?php echo number_format($percentage, 1); ?>% of total
+                                            <?php echo number_format($percentage, 1); ?>% of filtered
                                         </small>
                                         <br>
                                         <small class="text-muted">
@@ -1054,7 +1000,7 @@ $current_time = date('h:i A');
                                 </div>
                                 <h5 class="text-muted mb-3">No sales data</h5>
                                 <p class="text-muted mb-4">
-                                    Your products haven't been sold yet. Check back after your first sale!
+                                    No products were sold during the selected period.
                                 </p>
                                 <a href="manage_products.php" class="btn btn-outline-primary">
                                     <i class="fas fa-leaf me-2"></i> View My Products
@@ -1083,7 +1029,7 @@ $current_time = date('h:i A');
                                             <div class="empty-state-icon">
                                                 <i class="fas fa-chart-pie"></i>
                                             </div>
-                                            <p class="text-muted">No category data available</p>
+                                            <p class="text-muted">No category data available for selected period</p>
                                         </div>
                                     <?php endif; ?>
                                 </div>
@@ -1095,9 +1041,18 @@ $current_time = date('h:i A');
                                         <i class="fas fa-calendar-week me-2" style="color: var(--farmer-blue);"></i>
                                         Weekly Sales Pattern
                                     </h5>
+                                    <?php if(array_sum($weekly_sales) > 0): ?>
                                     <div class="chart-container">
                                         <canvas id="weeklyChart"></canvas>
                                     </div>
+                                    <?php else: ?>
+                                    <div class="empty-state" style="padding: 40px 20px;">
+                                        <div class="empty-state-icon">
+                                            <i class="fas fa-calendar-week"></i>
+                                        </div>
+                                        <p class="text-muted">No weekly data available for selected period</p>
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -1191,20 +1146,20 @@ $current_time = date('h:i A');
                                                 switch($sale['status']) {
                                                     case 'Completed':
                                                     case 'Delivered':
-                                                        $status_class = 'text-success';
+                                                        $status_class = 'bg-success';
                                                         break;
                                                     case 'Confirmed':
                                                     case 'Shipped':
-                                                        $status_class = 'text-primary';
+                                                        $status_class = 'bg-primary';
                                                         break;
                                                     case 'Processing':
-                                                        $status_class = 'text-warning';
+                                                        $status_class = 'bg-warning';
                                                         break;
                                                     default:
-                                                        $status_class = 'text-secondary';
+                                                        $status_class = 'bg-secondary';
                                                 }
                                                 ?>
-                                                <span class="badge <?php echo $status_class == 'text-success' ? 'bg-success' : ($status_class == 'text-primary' ? 'bg-primary' : ($status_class == 'text-warning' ? 'bg-warning' : 'bg-secondary')); ?>">
+                                                <span class="badge <?php echo $status_class; ?>">
                                                     <?php echo $sale['status']; ?>
                                                 </span>
                                             </td>
@@ -1220,7 +1175,7 @@ $current_time = date('h:i A');
                                 </div>
                                 <h5 class="text-muted mb-3">No transactions found</h5>
                                 <p class="text-muted mb-4">
-                                    There are no sales transactions for your products yet.
+                                    No sales transactions found for the selected period.
                                 </p>
                             </div>
                             <?php endif; ?>
@@ -1275,7 +1230,7 @@ $current_time = date('h:i A');
                                                 </h6>
                                                 <p class="mb-1 small">
                                                     <i class="fas fa-user-check me-1"></i>
-                                                    You have <?php echo $customer_count['total_customers'] ?? 0; ?> customers
+                                                    You have <?php echo $customer_count['total_customers'] ?? 0; ?> customers in this period
                                                 </p>
                                                 <p class="mb-0 small">
                                                     <i class="fas fa-shopping-bag me-1"></i>
@@ -1292,7 +1247,7 @@ $current_time = date('h:i A');
                                         <?php 
                                         $progress = 0;
                                         if (($filtered_stats['filtered_quantity'] ?? 0) > 0) {
-                                            $progress = min(100, (($filtered_stats['filtered_quantity'] ?? 0) / 1000) * 100);
+                                            $progress = min(100, (($filtered_stats['filtered_quantity'] ?? 0) / 100) * 100);
                                         }
                                         ?>
                                         <div class="progress" style="height: 10px;">
@@ -1326,7 +1281,7 @@ $current_time = date('h:i A');
                                 Period: <?php echo date('M d', strtotime($start_date)); ?> - <?php echo date('M d, Y', strtotime($end_date)); ?> • 
                                 <span class="mx-2">|</span> 
                                 <i class="fas fa-coins me-1"></i> 
-                                Total Revenue: Rs. <?php echo number_format($total_stats['total_sales'] ?? 0, 2); ?> • 
+                                Filtered Revenue: Rs. <?php echo number_format($filtered_stats['filtered_sales'] ?? 0, 2); ?> • 
                                 <span class="mx-2">|</span>
                                 <i class="fas fa-user me-1"></i>
                                 Farmer: <?php echo htmlspecialchars($farmer_name); ?>
@@ -1343,10 +1298,16 @@ $current_time = date('h:i A');
     <script>
         // Chart.js configurations
         let dailySalesChart, monthlySalesChart, categoryChart, weeklyChart;
-        let chartMode = 'revenue'; // 'revenue' or 'orders'
+        let chartMode = 'revenue';
         
         // Initialize charts
         function initCharts() {
+            // Destroy existing charts if they exist
+            if (dailySalesChart) dailySalesChart.destroy();
+            if (monthlySalesChart) monthlySalesChart.destroy();
+            if (categoryChart) categoryChart.destroy();
+            if (weeklyChart) weeklyChart.destroy();
+            
             // Daily Sales Chart
             const dailyCtx = document.getElementById('dailySalesChart').getContext('2d');
             dailySalesChart = new Chart(dailyCtx, {
@@ -1393,14 +1354,6 @@ $current_time = date('h:i A');
                                         return value;
                                     }
                                 }
-                            },
-                            grid: {
-                                drawBorder: false
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
                             }
                         }
                     },
@@ -1419,11 +1372,6 @@ $current_time = date('h:i A');
                                         return 'Orders: ' + context.parsed.y;
                                     }
                                 }
-                            }
-                        },
-                        legend: {
-                            labels: {
-                                usePointStyle: true,
                             }
                         }
                     }
@@ -1455,14 +1403,6 @@ $current_time = date('h:i A');
                                 callback: function(value) {
                                     return 'Rs. ' + value.toLocaleString();
                                 }
-                            },
-                            grid: {
-                                drawBorder: false
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
                             }
                         }
                     },
@@ -1480,26 +1420,6 @@ $current_time = date('h:i A');
                     }
                 }
             });
-            
-            // Prepare category data
-            <?php
-            $category_labels = [];
-            $category_data = [];
-            $category_colors = [
-                '#27ae60', '#3498db', '#f39c12', '#e74c3c', '#9b59b6',
-                '#1abc9c', '#d35400', '#c0392b', '#16a085', '#8e44ad'
-            ];
-            
-            if ($category_sales_result->num_rows > 0) {
-                $category_sales_result->data_seek(0);
-                $color_index = 0;
-                while ($cat = $category_sales_result->fetch_assoc()) {
-                    $category_labels[] = $cat['category'];
-                    $category_data[] = (float)$cat['category_sales'];
-                    $color_index = ($color_index + 1) % count($category_colors);
-                }
-            }
-            ?>
             
             <?php if($category_sales_result->num_rows > 0): ?>
             // Category Chart
@@ -1544,6 +1464,7 @@ $current_time = date('h:i A');
             });
             <?php endif; ?>
             
+            <?php if(array_sum($weekly_sales) > 0): ?>
             // Weekly Chart
             const weeklyCtx = document.getElementById('weeklyChart').getContext('2d');
             weeklyChart = new Chart(weeklyCtx, {
@@ -1569,14 +1490,6 @@ $current_time = date('h:i A');
                                 callback: function(value) {
                                     return 'Rs. ' + value.toLocaleString();
                                 }
-                            },
-                            grid: {
-                                drawBorder: false
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
                             }
                         }
                     },
@@ -1594,6 +1507,7 @@ $current_time = date('h:i A');
                     }
                 }
             });
+            <?php endif; ?>
         }
         
         // Toggle between revenue and orders in daily chart
@@ -1607,8 +1521,8 @@ $current_time = date('h:i A');
             dailySalesChart.update();
             
             // Update button states
-            $('.btn-group .btn').removeClass('active');
-            $('.btn-group .btn:first').addClass('active');
+            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.btn-group .btn:first-child').classList.add('active');
         }
         
         function showOrdersChart() {
@@ -1621,110 +1535,164 @@ $current_time = date('h:i A');
             dailySalesChart.update();
             
             // Update button states
-            $('.btn-group .btn').removeClass('active');
-            $('.btn-group .btn:last').addClass('active');
+            document.querySelectorAll('.btn-group .btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.btn-group .btn:last-child').classList.add('active');
         }
         
-        // Export data function
-        function exportData() {
+        // Export to CSV function
+        function exportToCSV() {
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
             const farmerName = "<?php echo htmlspecialchars($farmer_name); ?>";
             
-            // Create CSV content
-            let csvContent = "data:text/csv;charset=utf-8,";
-            csvContent += "Sales Report for " + farmerName + "\n";
+            let csvContent = "Sales Report for " + farmerName + "\n";
             csvContent += "Period: " + startDate + " to " + endDate + "\n";
             csvContent += "Generated on: " + new Date().toLocaleDateString() + "\n\n";
             
-            // Main metrics
-            csvContent += "METRIC,VALUE\n";
-            csvContent += "Filtered Sales Revenue,Rs. " + <?php echo $filtered_stats['filtered_sales'] ?? 0; ?> + "\n";
-            csvContent += "Filtered Orders," + <?php echo $filtered_stats['filtered_orders'] ?? 0; ?> + "\n";
-            csvContent += "Total Units Sold," + <?php echo $filtered_stats['filtered_quantity'] ?? 0; ?> + "\n";
-            csvContent += "Average Order Value,Rs. " + (<?php echo $filtered_stats['filtered_avg_value'] ?? 0; ?>).toFixed(2) + "\n";
-            csvContent += "Total Customers," + <?php echo $customer_count['total_customers'] ?? 0; ?> + "\n";
-            csvContent += "Monthly Growth," + <?php echo $growth_percentage ?? 0; ?> + "%\n\n";
+            // Summary statistics
+            csvContent += "SUMMARY STATISTICS\n";
+            csvContent += "Metric,Value\n";
+            csvContent += "Filtered Sales Revenue,Rs. <?php echo $filtered_stats['filtered_sales'] ?? 0; ?>\n";
+            csvContent += "Filtered Orders,<?php echo $filtered_stats['filtered_orders'] ?? 0; ?>\n";
+            csvContent += "Total Units Sold,<?php echo $filtered_stats['filtered_quantity'] ?? 0; ?>\n";
+            csvContent += "Average Order Value,Rs. <?php echo number_format($filtered_stats['filtered_avg_value'] ?? 0, 2); ?>\n";
+            csvContent += "Unique Customers,<?php echo $customer_count['total_customers'] ?? 0; ?>\n\n";
             
             // Top products
             csvContent += "TOP SELLING PRODUCTS\n";
-            csvContent += "Rank,Product Name,Category,Units Sold,Total Revenue,Stock\n";
+            csvContent += "Rank,Product Name,Category,Units Sold,Total Revenue,Average Price,Stock\n";
             <?php
             if($top_products_result->num_rows > 0) {
                 $top_products_result->data_seek(0);
                 $rank = 1;
                 while($product = $top_products_result->fetch_assoc()) {
-                    echo "csvContent += '" . $rank . ",\"" . addslashes($product['name']) . "\",\"" . $product['category'] . "\"," . $product['total_sold'] . ",Rs. " . number_format($product['total_revenue'], 2) . "," . $product['stock'] . "\\n';\n";
+                    echo "csvContent += '" . $rank . ",\"" . addslashes($product['name']) . "\",\"" . addslashes($product['category']) . "\"," . $product['total_sold'] . ",Rs. " . number_format($product['total_revenue'], 2) . ",Rs. " . number_format($product['avg_price'], 2) . "," . $product['stock'] . "\\n';\n";
                     $rank++;
                 }
             }
             ?>
             
             // Create download link
-            const encodedUri = encodeURI(csvContent);
+            const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "sales_report_<?php echo date('Y-m-d'); ?>_<?php echo htmlspecialchars($farmer_name); ?>.csv");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", "sales_report_<?php echo date('Y-m-d'); ?>.csv");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(url);
             
-            // Show success message
-            alert('Sales report exported successfully!');
+            alert('Sales report exported successfully as CSV!');
         }
         
-        // Toggle debug info
-        function toggleDebugInfo() {
-            $('.debug-info').toggle();
-        }
-        
-        // Toggle test data
-        function toggleDataTest() {
-            $('.data-test').toggle();
+        // Export to PDF function
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const startDate = document.getElementById('start_date').value;
+            const endDate = document.getElementById('end_date').value;
+            const farmerName = "<?php echo htmlspecialchars($farmer_name); ?>";
+            
+            // Title
+            doc.setFontSize(18);
+            doc.setTextColor(39, 174, 96);
+            doc.text('Sales Report', 105, 20, { align: 'center' });
+            
+            doc.setFontSize(11);
+            doc.setTextColor(0, 0, 0);
+            doc.text('Farmer: ' + farmerName, 20, 35);
+            doc.text('Period: ' + startDate + ' to ' + endDate, 20, 42);
+            doc.text('Generated: ' + new Date().toLocaleDateString(), 20, 49);
+            
+            // Summary statistics
+            doc.setFontSize(14);
+            doc.setTextColor(39, 174, 96);
+            doc.text('Summary Statistics', 20, 65);
+            
+            const summaryData = [
+                ['Metric', 'Value'],
+                ['Filtered Sales Revenue', 'Rs. <?php echo number_format($filtered_stats['filtered_sales'] ?? 0, 2); ?>'],
+                ['Filtered Orders', '<?php echo $filtered_stats['filtered_orders'] ?? 0; ?>'],
+                ['Total Units Sold', '<?php echo $filtered_stats['filtered_quantity'] ?? 0; ?>'],
+                ['Average Order Value', 'Rs. <?php echo number_format($filtered_stats['filtered_avg_value'] ?? 0, 2); ?>'],
+                ['Unique Customers', '<?php echo $customer_count['total_customers'] ?? 0; ?>']
+            ];
+            
+            doc.autoTable({
+                startY: 70,
+                head: [summaryData[0]],
+                body: summaryData.slice(1),
+                theme: 'grid',
+                headStyles: { fillColor: [39, 174, 96] },
+                margin: { left: 20, right: 20 }
+            });
+            
+            // Top products
+            <?php if($top_products_result->num_rows > 0): ?>
+            let yPos = doc.lastAutoTable.finalY + 15;
+            
+            if (yPos > 250) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            doc.setFontSize(14);
+            doc.setTextColor(39, 174, 96);
+            doc.text('Top Selling Products', 20, yPos);
+            
+            const productsData = [
+                ['Rank', 'Product', 'Category', 'Sold', 'Revenue']
+            ];
+            
+            <?php
+            $top_products_result->data_seek(0);
+            $rank = 1;
+            while($product = $top_products_result->fetch_assoc()) {
+                echo "productsData.push(['#" . $rank . "', '" . addslashes($product['name']) . "', '" . addslashes($product['category']) . "', " . $product['total_sold'] . ", 'Rs. " . number_format($product['total_revenue'], 2) . "']);\n";
+                $rank++;
+            }
+            ?>
+            
+            doc.autoTable({
+                startY: yPos + 5,
+                head: [productsData[0]],
+                body: productsData.slice(1),
+                theme: 'grid',
+                headStyles: { fillColor: [39, 174, 96] },
+                margin: { left: 20, right: 20 }
+            });
+            <?php endif; ?>
+            
+            // Save PDF
+            doc.save('sales_report_<?php echo date('Y-m-d'); ?>.pdf');
+            
+            alert('Sales report exported successfully as PDF!');
         }
         
         // Initialize on page load
-        $(document).ready(function() {
+        document.addEventListener('DOMContentLoaded', function() {
             initCharts();
             
             // Set max date for date inputs
             const today = new Date().toISOString().split('T')[0];
-            $('#start_date').attr('max', today);
-            $('#end_date').attr('max', today);
-            
-            // Add hover effect to cards
-            $('.stat-card, .analytics-card').hover(
-                function() {
-                    $(this).css('transform', 'translateY(-5px)');
-                },
-                function() {
-                    $(this).css('transform', 'translateY(0)');
-                }
-            );
+            document.getElementById('start_date').setAttribute('max', today);
+            document.getElementById('end_date').setAttribute('max', today);
             
             // Validate date range
-            $('#start_date, #end_date').on('change', function() {
-                const startDate = new Date($('#start_date').val());
-                const endDate = new Date($('#end_date').val());
+            document.getElementById('start_date').addEventListener('change', validateDates);
+            document.getElementById('end_date').addEventListener('change', validateDates);
+            
+            function validateDates() {
+                const startDate = new Date(document.getElementById('start_date').value);
+                const endDate = new Date(document.getElementById('end_date').value);
                 
                 if (startDate > endDate) {
                     alert('Start date cannot be after end date!');
-                    $('#end_date').val($('#start_date').val());
+                    document.getElementById('end_date').value = document.getElementById('start_date').value;
                 }
-            });
-            
-            // Show debug info on Ctrl+D
-            $(document).on('keydown', function(e) {
-                if (e.ctrlKey && e.key === 'd') {
-                    $('.debug-info').toggle();
-                    e.preventDefault();
-                }
-            });
-            
-            // Add animation to stat cards
-            $('.stat-card').each(function(index) {
-                $(this).delay(index * 100).animate({opacity: 1}, 300);
-            });
+            }
         });
     </script>
 </body>

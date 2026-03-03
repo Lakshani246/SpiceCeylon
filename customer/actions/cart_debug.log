@@ -160,3 +160,21 @@ Product: Fenugreek Seeds - උළුහාල් (Uluhal), Base Price: 340, Mult
 Unit Price: 340, Total Price: 340
 New cart item added successfully
 SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-03 09:21:57
+User ID: 1, Role: customer
+POST Data - Product ID: 31, Quantity: 3, Package: 100g
+Database connected successfully
+Product: Licorice Powder - වැල්මී කුඩු (Welmee Kudu), Base Price: 580, Multiplier: 0.1
+Unit Price: 58, Total Price: 174
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 100g
+=== Add to Cart Debug ===
+Time: 2026-03-03 09:23:49
+User ID: 1, Role: customer
+POST Data - Product ID: 4, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Nutmeg - සාදික්කා (Sadikka), Base Price: 750, Multiplier: 1
+Unit Price: 750, Total Price: 750
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
