@@ -15,16 +15,12 @@ $admin_query->bind_param("i", $admin_id);
 $admin_query->execute();
 $admin = $admin_query->get_result()->fetch_assoc();
 
-// Handle actions
-if (isset($_GET['action']) && isset($_GET['id'])) {
+// ========== FIXED: Handle actions - REMOVED 'view' from redirect actions ==========
+if (isset($_GET['action']) && isset($_GET['id']) && $_GET['action'] != 'view') {
     $order_id = $_GET['id'];
     $action = $_GET['action'];
     
-    if ($action == 'view') {
-        header("Location: view_order.php?id=$order_id");
-        exit;
-    }
-    elseif ($action == 'update_status') {
+    if ($action == 'update_status') {
         if (isset($_POST['status'])) {
             $new_status = $_POST['status'];
             $notes = $_POST['notes'] ?? '';
@@ -38,20 +34,64 @@ if (isset($_GET['action']) && isset($_GET['id'])) {
             $conn->query("INSERT INTO order_status_history (order_id, status, changed_by_admin, notes) VALUES ('$order_id', '$new_status', '$admin_id', '$notes')");
             
             $_SESSION['message'] = "Order #$order_id status updated to " . ucfirst($new_status) . "!";
+            $_SESSION['message_type'] = 'success';
         }
     }
     elseif ($action == 'cancel') {
         $conn->query("UPDATE orders SET status = 'Cancelled', updated_at = NOW() WHERE order_id = '$order_id'");
         $conn->query("INSERT INTO order_status_history (order_id, status, changed_by_admin, notes) VALUES ('$order_id', 'Cancelled', '$admin_id', 'Cancelled by admin')");
         $_SESSION['message'] = "Order #$order_id has been cancelled!";
+        $_SESSION['message_type'] = 'warning';
     }
     elseif ($action == 'delete') {
         // Since no is_deleted column, just cancel it
         $conn->query("UPDATE orders SET status = 'Cancelled' WHERE order_id = '$order_id'");
         $_SESSION['message'] = "Order #$order_id has been cancelled!";
+        $_SESSION['message_type'] = 'danger';
     }
     
     header("Location: manage_orders.php");
+    exit;
+}
+
+// ========== ADDED: Handle AJAX request for order data ==========
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_order' && isset($_GET['id'])) {
+    $order_id = $_GET['id'];
+    header('Content-Type: application/json');
+    
+    $response = ['success' => false];
+    
+    // Get order details
+    $order_query = "SELECT o.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone 
+                   FROM orders o 
+                   JOIN users u ON o.customer_id = u.user_id 
+                   WHERE o.order_id = '$order_id'";
+    $order_result = $conn->query($order_query);
+    
+    if ($order_result && $order_result->num_rows > 0) {
+        $order = $order_result->fetch_assoc();
+        
+        // Get order items
+        $items_query = "SELECT oi.*, p.name as product_name, p.category, p.image 
+                       FROM order_items oi 
+                       JOIN products p ON oi.product_id = p.product_id 
+                       WHERE oi.order_id = '$order_id'";
+        $items_result = $conn->query($items_query);
+        $items = [];
+        $subtotal = 0;
+        
+        while ($item = $items_result->fetch_assoc()) {
+            $subtotal += $item['total_price'];
+            $items[] = $item;
+        }
+        
+        $response['success'] = true;
+        $response['order'] = $order;
+        $response['items'] = $items;
+        $response['subtotal'] = $subtotal;
+    }
+    
+    echo json_encode($response);
     exit;
 }
 
@@ -126,6 +166,37 @@ $today_orders = $today_result->fetch_assoc();
 $month_start = date('Y-m-01');
 $month_result = $conn->query("SELECT COUNT(*) as count, SUM(total_amount) as revenue FROM orders WHERE created_at >= '$month_start'");
 $month_orders = $month_result->fetch_assoc();
+
+// Get all order details for modals (pre-fetch all order data to avoid multiple queries)
+$order_details_cache = [];
+$order_items_cache = [];
+
+if ($orders_result->num_rows > 0) {
+    $orders_result->data_seek(0);
+    while ($order = $orders_result->fetch_assoc()) {
+        $order_id = $order['order_id'];
+        
+        // Get order details
+        $detail_query = "SELECT o.*, u.name as customer_name, u.email as customer_email, u.phone as customer_phone 
+                        FROM orders o 
+                        JOIN users u ON o.customer_id = u.user_id 
+                        WHERE o.order_id = '$order_id'";
+        $detail_result = $conn->query($detail_query);
+        $order_details_cache[$order_id] = $detail_result->fetch_assoc();
+        
+        // Get order items
+        $items_query = "SELECT oi.*, p.name as product_name, p.category, p.image 
+                       FROM order_items oi 
+                       JOIN products p ON oi.product_id = p.product_id 
+                       WHERE oi.order_id = '$order_id'";
+        $items_result = $conn->query($items_query);
+        $order_items_cache[$order_id] = [];
+        while ($item = $items_result->fetch_assoc()) {
+            $order_items_cache[$order_id][] = $item;
+        }
+    }
+    $orders_result->data_seek(0); // Reset pointer
+}
 ?>
 
 <!DOCTYPE html>
@@ -334,25 +405,6 @@ $month_orders = $month_result->fetch_assoc();
             color: white;
         }
         
-        .status-filter-badge {
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-weight: 500;
-            transition: all 0.3s;
-            text-decoration: none !important;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .status-filter-badge:hover {
-            transform: translateY(-2px);
-        }
-        
-        .status-filter-badge.active {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        
         .order-id {
             font-weight: bold;
             color: var(--spice-red);
@@ -377,6 +429,313 @@ $month_orders = $month_result->fetch_assoc();
             font-size: 4rem;
             color: #e9ecef;
             margin-bottom: 20px;
+        }
+        
+        /* ========== BEAUTIFUL CENTERED MODAL STYLES ========== */
+        .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            padding: 20px 25px;
+            border-bottom: none;
+            background: linear-gradient(135deg, var(--spice-red), #d35400);
+            color: white;
+        }
+        
+        .modal-header .modal-title {
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+        
+        .modal-header .btn-close {
+            filter: invert(1);
+            opacity: 0.8;
+            transition: all 0.3s;
+        }
+        
+        .modal-header .btn-close:hover {
+            opacity: 1;
+            transform: rotate(90deg);
+        }
+        
+        .modal-body {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #e9ecef;
+            background: white;
+        }
+        
+        /* Order Details Card in Modal */
+        .order-detail-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--spice-blue);
+        }
+        
+        .order-detail-card h6 {
+            color: var(--spice-dark);
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f1f1;
+        }
+        
+        .detail-item {
+            display: flex;
+            margin-bottom: 12px;
+        }
+        
+        .detail-label {
+            width: 120px;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+        
+        .detail-value {
+            flex: 1;
+            color: var(--spice-dark);
+            font-weight: 500;
+        }
+        
+        /* Product Items Table in Modal */
+        .product-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        
+        .product-table th {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--spice-dark);
+            border-radius: 8px 8px 0 0;
+        }
+        
+        .product-table td {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+        
+        .product-image {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid #e9ecef;
+        }
+        
+        .product-name {
+            font-weight: 600;
+            color: var(--spice-dark);
+        }
+        
+        .product-category {
+            font-size: 0.8rem;
+            color: #95a5a6;
+        }
+        
+        /* ========== BEAUTIFUL COLORED ALERT MESSAGES ========== */
+        .alert-custom {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 350px;
+            max-width: 450px;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            z-index: 9999;
+            animation: slideInRight 0.5s ease, fadeOut 0.5s ease 4.5s forwards;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-left: 6px solid;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+                visibility: hidden;
+            }
+        }
+        
+        .alert-custom.success {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        
+        .alert-custom.warning {
+            background: linear-gradient(135deg, #fff3cd, #ffe8a1);
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        
+        .alert-custom.danger {
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .alert-custom.info {
+            background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+        
+        .alert-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .alert-custom.success .alert-icon {
+            background: #28a745;
+            color: white;
+        }
+        
+        .alert-custom.warning .alert-icon {
+            background: #ffc107;
+            color: white;
+        }
+        
+        .alert-custom.danger .alert-icon {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .alert-custom.info .alert-icon {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 700;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+        
+        .alert-message {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .alert-close {
+            color: inherit;
+            opacity: 0.5;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        
+        .alert-close:hover {
+            opacity: 1;
+        }
+        
+        /* Center modal */
+        .modal-dialog-centered {
+            display: flex;
+            align-items: center;
+            min-height: calc(100% - 3.5rem);
+        }
+        
+        @media (min-width: 576px) {
+            .modal-dialog-centered {
+                min-height: calc(100% - 1.75rem);
+            }
+        }
+        
+        /* ========== ADDED: Loading spinner for modal ========== */
+        .modal-spinner {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--spice-red);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* ========== ADDED: Print styles ========== */
+        @media print {
+            .no-print, .sidebar, .action-buttons, .btn, .modal-header .btn-close, .modal-footer {
+                display: none !important;
+            }
+            
+            .modal {
+                position: absolute;
+                left: 0;
+                top: 0;
+                margin: 0;
+                padding: 0;
+                overflow: visible;
+            }
+            
+            .modal-dialog {
+                margin: 0;
+                max-width: 100%;
+            }
+            
+            .modal-content {
+                box-shadow: none;
+                border: 1px solid #ddd;
+            }
+            
+            body {
+                background: white;
+            }
+            
+            .order-detail-card {
+                break-inside: avoid;
+            }
         }
     </style>
 </head>
@@ -406,6 +765,26 @@ $month_orders = $month_result->fetch_assoc();
                         </div>
                     </div>
                 </div>
+
+                <!-- ========== BEAUTIFUL COLORED ALERT MESSAGES ========== -->
+                <?php if(isset($_SESSION['message'])): 
+                    $message_type = $_SESSION['message_type'] ?? 'success';
+                    $title = $message_type == 'success' ? 'Success!' : ($message_type == 'warning' ? 'Warning!' : ($message_type == 'danger' ? 'Error!' : 'Info!'));
+                    $icon = $message_type == 'success' ? 'fa-check-circle' : ($message_type == 'warning' ? 'fa-exclamation-triangle' : ($message_type == 'danger' ? 'fa-times-circle' : 'fa-info-circle'));
+                ?>
+                <div class="alert-custom <?php echo $message_type; ?>" id="customAlert">
+                    <div class="alert-icon">
+                        <i class="fas <?php echo $icon; ?>"></i>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title"><?php echo $title; ?></div>
+                        <div class="alert-message"><?php echo $_SESSION['message']; ?></div>
+                    </div>
+                    <div class="alert-close" onclick="closeCustomAlert()">
+                        <i class="fas fa-times"></i>
+                    </div>
+                </div>
+                <?php unset($_SESSION['message'], $_SESSION['message_type']); endif; ?>
 
                 <!-- Status Stats -->
                 <div class="row mb-4">
@@ -563,14 +942,6 @@ $month_orders = $month_result->fetch_assoc();
                         </a>
                     </div>
                 </div>
-
-                <!-- Messages -->
-                <?php if(isset($_SESSION['message'])): ?>
-                <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
-                    <i class="fas fa-check-circle me-2"></i> <?php echo $_SESSION['message']; ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                <?php unset($_SESSION['message']); endif; ?>
 
                 <!-- Filters -->
                 <div class="filter-card">
@@ -746,11 +1117,11 @@ $month_orders = $month_result->fetch_assoc();
                                 <!-- Actions -->
                                 <div class="col-md-2">
                                     <div class="action-buttons d-flex flex-wrap justify-content-end">
-                                        <!-- View Button -->
-                                        <a href="manage_orders.php?action=view&id=<?php echo $order['order_id']; ?>" 
-                                           class="btn btn-outline-primary btn-sm me-1 mb-1">
+                                        <!-- ========== FIXED: View Button with AJAX (no page refresh) ========== -->
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1 mb-1 view-order-btn" 
+                                                data-order-id="<?php echo $order['order_id']; ?>">
                                             <i class="fas fa-eye"></i> View
-                                        </a>
+                                        </button>
                                         
                                         <!-- Status Update Dropdown -->
                                         <div class="dropdown me-1 mb-1">
@@ -847,15 +1218,50 @@ $month_orders = $month_result->fetch_assoc();
         </div>
     </div>
 
+    <!-- ========== ADDED: Single AJAX Modal for Order Details ========== -->
+    <div class="modal fade" id="orderDetailModal" tabindex="-1" aria-labelledby="orderDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="orderDetailModalLabel">
+                        <i class="fas fa-shopping-cart me-2"></i>
+                        Order Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="modalContent">
+                    <div class="modal-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading order details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Close
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="window.print()">
+                        <i class="fas fa-print me-1"></i>Print
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto-dismiss alerts after 5 seconds
-        $(document).ready(function() {
-            setTimeout(function() {
-                $('.alert').alert('close');
-            }, 5000);
-        });
+        // Auto-dismiss custom alerts after 5 seconds
+        function closeCustomAlert() {
+            document.getElementById('customAlert')?.remove();
+        }
+        
+        setTimeout(function() {
+            const alert = document.getElementById('customAlert');
+            if(alert) {
+                alert.style.animation = 'fadeOut 0.5s ease forwards';
+                setTimeout(() => alert.remove(), 500);
+            }
+        }, 5000);
         
         // Highlight active stat card
         const currentStatus = "<?php echo $status_filter; ?>";
@@ -867,13 +1273,11 @@ $month_orders = $month_result->fetch_assoc();
         
         // Auto-set date ranges
         document.addEventListener('DOMContentLoaded', function() {
-            // Set default date to today if empty
             const today = new Date().toISOString().split('T')[0];
             const dateFromInput = document.querySelector('input[name="date_from"]');
             const dateToInput = document.querySelector('input[name="date_to"]');
             
             if(dateFromInput && !dateFromInput.value) {
-                // Default to 30 days ago
                 const thirtyDaysAgo = new Date();
                 thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
                 dateFromInput.value = thirtyDaysAgo.toISOString().split('T')[0];
@@ -889,6 +1293,191 @@ $month_orders = $month_result->fetch_assoc();
             const urlParams = new URLSearchParams(window.location.search);
             if(urlParams.has('search') && urlParams.get('search')) {
                 document.querySelector('input[name="search"]').focus();
+            }
+        });
+        
+        // ========== ADDED: AJAX View Button Handler ==========
+        $(document).ready(function() {
+            $('.view-order-btn').on('click', function(e) {
+                e.preventDefault(); // Prevent any default behavior
+                const orderId = $(this).data('order-id');
+                
+                // Show modal with loading spinner
+                $('#orderDetailModal').modal('show');
+                
+                // Load order details via AJAX
+                $.ajax({
+                    url: 'manage_orders.php?ajax=get_order&id=' + orderId,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            displayOrderDetails(response);
+                        } else {
+                            $('#modalContent').html('<div class="alert alert-danger">Failed to load order details.</div>');
+                        }
+                    },
+                    error: function() {
+                        $('#modalContent').html('<div class="alert alert-danger">Error loading order details.</div>');
+                    }
+                });
+            });
+            
+            function displayOrderDetails(data) {
+                const order = data.order;
+                const items = data.items;
+                const subtotal = data.subtotal;
+                
+                let statusIcon = 'fa-circle';
+                switch(order.status) {
+                    case 'Pending': statusIcon = 'fa-clock'; break;
+                    case 'Processing': statusIcon = 'fa-cogs'; break;
+                    case 'Shipped': statusIcon = 'fa-shipping-fast'; break;
+                    case 'Delivered': statusIcon = 'fa-check-circle'; break;
+                    case 'Completed': statusIcon = 'fa-check-double'; break;
+                    case 'Confirmed': statusIcon = 'fa-user-check'; break;
+                    case 'Cancelled': statusIcon = 'fa-times-circle'; break;
+                }
+                
+                let itemsHtml = '';
+                items.forEach(item => {
+                    const imagePath = '../assets/images/' + (item.image || 'default-spice.jpg');
+                    itemsHtml += `
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <img src="${imagePath}" 
+                                         alt="${item.product_name}" 
+                                         class="product-image me-3"
+                                         onerror="this.src='../assets/images/default-spice.jpg'">
+                                    <div>
+                                        <div class="product-name">${item.product_name}</div>
+                                        <div class="product-category">${item.category}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>${item.category}</td>
+                            <td>${item.quantity} kg</td>
+                            <td>LKR ${parseFloat(item.price).toFixed(2)}</td>
+                            <td><strong>LKR ${parseFloat(item.total_price).toFixed(2)}</strong></td>
+                        </tr>
+                    `;
+                });
+                
+                const html = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="order-detail-card">
+                                <h6><i class="fas fa-info-circle me-2" style="color: #3498db;"></i>Order Information</h6>
+                                <div class="detail-item">
+                                    <span class="detail-label">Order ID:</span>
+                                    <span class="detail-value">#${order.order_id}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Order Date:</span>
+                                    <span class="detail-value">${new Date(order.created_at).toLocaleString()}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Order Status:</span>
+                                    <span class="detail-value">
+                                        <span class="status-badge badge-${order.status}">
+                                            <i class="fas ${statusIcon} me-1"></i>
+                                            ${order.status}
+                                        </span>
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Payment Method:</span>
+                                    <span class="detail-value">${order.payment_method.replace(/_/g, ' ')}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Payment Status:</span>
+                                    <span class="detail-value">
+                                        ${order.payment_status == 'paid' ? 
+                                            '<span class="badge bg-success">Paid</span>' : 
+                                            '<span class="badge bg-warning">Pending</span>'}
+                                    </span>
+                                </div>
+                                ${order.notes ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Customer Notes:</span>
+                                    <span class="detail-value">${order.notes}</span>
+                                </div>
+                                ` : ''}
+                                ${order.admin_notes ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Admin Notes:</span>
+                                    <span class="detail-value">${order.admin_notes}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="order-detail-card">
+                                <h6><i class="fas fa-user me-2" style="color: #27ae60;"></i>Customer Information</h6>
+                                <div class="detail-item">
+                                    <span class="detail-label">Name:</span>
+                                    <span class="detail-value">${order.customer_name}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Email:</span>
+                                    <span class="detail-value">${order.customer_email}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Phone:</span>
+                                    <span class="detail-value">${order.shipping_phone}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Address:</span>
+                                    <span class="detail-value">${order.shipping_address}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">City:</span>
+                                    <span class="detail-value">${order.shipping_city}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Postal Code:</span>
+                                    <span class="detail-value">${order.shipping_postal}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="order-detail-card mt-3">
+                        <h6><i class="fas fa-box me-2" style="color: #9b59b6;"></i>Order Items</h6>
+                        <table class="product-table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Category</th>
+                                    <th>Quantity</th>
+                                    <th>Price</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${itemsHtml}
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" class="text-end"><strong>Subtotal:</strong></td>
+                                    <td><strong>LKR ${parseFloat(subtotal).toFixed(2)}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="text-end">Shipping Fee:</td>
+                                    <td>LKR ${parseFloat(order.shipping_fee).toFixed(2)}</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="4" class="text-end"><strong>Total:</strong></td>
+                                    <td><strong class="text-success">LKR ${parseFloat(order.final_total || order.total_amount).toFixed(2)}</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                `;
+                
+                $('#modalContent').html(html);
             }
         });
     </script>

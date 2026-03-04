@@ -65,7 +65,7 @@ function notifyCustomer($conn, $request_id, $status, $farmer_name = '', $reject_
     }
 }
 
-// Handle POST actions (for farmer assignment and reject with reason)
+// Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] == 'assign') {
         $request_id = (int)$_POST['request_id'];
@@ -218,6 +218,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         header("Location: manage_requests.php");
         exit();
     }
+    
+    // ========== ADDED: Handle review action with POST ==========
+    if ($_POST['action'] == 'review') {
+        $request_id = (int)$_POST['request_id'];
+        $csrf_token = $_POST['csrf_token'];
+        
+        // Validate CSRF token
+        if (!hash_equals($_SESSION['csrf_token'], $csrf_token)) {
+            echo json_encode(['success' => false, 'message' => "Security token invalid. Please try again."]);
+            exit();
+        }
+        
+        // Check if request exists
+        $check_stmt = $conn->prepare("SELECT status FROM product_requests WHERE request_id = ?");
+        $check_stmt->bind_param("i", $request_id);
+        $check_stmt->execute();
+        $check_result = $check_stmt->get_result();
+        
+        if ($check_result->num_rows === 0) {
+            echo json_encode(['success' => false, 'message' => "Request not found"]);
+            exit();
+        }
+        
+        $request_data = $check_result->fetch_assoc();
+        
+        // Update request status to Reviewed
+        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Reviewed', updated_at = NOW() WHERE request_id = ?");
+        $stmt->bind_param("i", $request_id);
+        
+        if ($stmt->execute()) {
+            // Log the review
+            $log_stmt = $conn->prepare("INSERT INTO request_history (request_id, changed_by_admin, old_status, new_status, notes) VALUES (?, ?, ?, ?, ?)");
+            $admin_id = $_SESSION['admin_id'];
+            $old_status = $request_data['status'];
+            $new_status = 'Reviewed';
+            $notes = "Marked as reviewed by admin";
+            $log_stmt->bind_param("iisss", $request_id, $admin_id, $old_status, $new_status, $notes);
+            $log_stmt->execute();
+            $log_stmt->close();
+            
+            echo json_encode(['success' => true, 'message' => "Request marked as reviewed!"]);
+        } else {
+            echo json_encode(['success' => false, 'message' => "Error updating request"]);
+        }
+        exit();
+    }
 }
 
 // Handle GET actions with CSRF protection
@@ -235,7 +281,7 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     }
     
     // Validate action
-    $allowed_actions = ['view', 'approve', 'delete', 'review', 'complete'];
+    $allowed_actions = ['view', 'approve', 'delete', 'complete'];
     if (!in_array($action, $allowed_actions)) {
         $_SESSION['message'] = "Invalid action specified";
         $_SESSION['message_type'] = 'danger';
@@ -263,18 +309,6 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     if ($action == 'view') {
         header("Location: view_request.php?id=$request_id");
         exit;
-    }
-    elseif ($action == 'review') {
-        // Mark as reviewed
-        $stmt = $conn->prepare("UPDATE product_requests SET status = 'Reviewed', updated_at = NOW() WHERE request_id = ?");
-        $stmt->bind_param("i", $request_id);
-        if ($stmt->execute()) {
-            $_SESSION['message'] = "Request marked as reviewed!";
-            $_SESSION['message_type'] = 'success';
-        } else {
-            $_SESSION['message'] = "Error updating request";
-            $_SESSION['message_type'] = 'danger';
-        }
     }
     elseif ($action == 'approve') {
         // Check if farmer_id is provided for assignment
@@ -385,17 +419,14 @@ if (isset($_GET['action']) && isset($_GET['id']) && isset($_GET['csrf_token'])) 
     exit;
 }
 
-// Filter parameters with sanitization
-$status_filter = isset($_GET['status']) ? $_GET['status'] : 'Pending';
+// ========== GET CURRENT TAB ==========
+$current_tab = isset($_GET['tab']) ? $_GET['tab'] : 'new';
+
+// ========== FILTER PARAMETERS ==========
+$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Validate status filter
-$valid_statuses = ['Pending', 'Reviewed', 'Approved', 'Rejected', 'Completed', 'Accepted'];
-if (!in_array($status_filter, $valid_statuses)) {
-    $status_filter = 'Pending';
-}
-
-// Build query with prepared statements
+// ========== BUILD QUERY BASED ON TAB ==========
 $query = "SELECT pr.*, 
                  u.name as customer_name, 
                  u.email as customer_email,
@@ -404,15 +435,39 @@ $query = "SELECT pr.*,
           FROM product_requests pr 
           JOIN users u ON pr.customer_id = u.user_id 
           LEFT JOIN users f ON pr.assigned_farmer_id = f.user_id
-          WHERE pr.status = ?";
+          WHERE 1=1";
 
-$count_query = "SELECT COUNT(*) as total FROM product_requests pr WHERE pr.status = ?";
+$count_query = "SELECT COUNT(*) as total FROM product_requests pr WHERE 1=1";
 
-$params = [$status_filter];
-$count_params = [$status_filter];
-$param_types = "s";
-$count_param_types = "s";
+$params = [];
+$count_params = [];
+$param_types = "";
+$count_param_types = "";
 
+// ========== ADD TAB FILTERS ==========
+if ($current_tab == 'new') {
+    // New requests: Pending and not assigned
+    $query .= " AND pr.status IN ('Pending', 'Reviewed') AND (pr.assigned_farmer_id IS NULL OR pr.assigned_farmer_id = 0)";
+    $count_query .= " AND pr.status IN ('Pending', 'Reviewed') AND (pr.assigned_farmer_id IS NULL OR pr.assigned_farmer_id = 0)";
+} elseif ($current_tab == 'assigned') {
+    // Assigned requests: Approved, Accepted, Completed, Rejected with farmer assigned
+    $query .= " AND pr.status IN ('Approved', 'Accepted', 'Completed', 'Rejected') AND pr.assigned_farmer_id IS NOT NULL AND pr.assigned_farmer_id > 0";
+    $count_query .= " AND pr.status IN ('Approved', 'Accepted', 'Completed', 'Rejected') AND pr.assigned_farmer_id IS NOT NULL AND pr.assigned_farmer_id > 0";
+} elseif ($current_tab == 'all') {
+    // All requests - no additional filter
+}
+
+// Add status filter if provided
+if (!empty($status_filter) && in_array($status_filter, ['Pending', 'Reviewed', 'Approved', 'Rejected', 'Completed', 'Accepted'])) {
+    $query .= " AND pr.status = ?";
+    $count_query .= " AND pr.status = ?";
+    $params[] = $status_filter;
+    $count_params[] = $status_filter;
+    $param_types .= "s";
+    $count_param_types .= "s";
+}
+
+// Add search filter if provided
 if (!empty($search)) {
     $search_term = "%" . $search . "%";
     $query .= " AND (pr.product_name LIKE ? OR pr.description LIKE ? OR u.name LIKE ? OR f.name LIKE ?)";
@@ -442,7 +497,7 @@ $offset = ($page - 1) * $limit;
 
 // Get total count
 $count_stmt = $conn->prepare($count_query);
-if ($count_params) {
+if (!empty($count_params)) {
     $count_stmt->bind_param($count_param_types, ...$count_params);
 }
 $count_stmt->execute();
@@ -463,28 +518,34 @@ $params[] = $offset;
 $param_types .= "ii";
 
 $requests_stmt = $conn->prepare($query);
-if ($params) {
+if (!empty($params)) {
     $requests_stmt->bind_param($param_types, ...$params);
 }
 $requests_stmt->execute();
 $requests_result = $requests_stmt->get_result();
 
-// Get counts for all statuses using prepared statements
-function getRequestCount($conn, $status) {
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM product_requests WHERE status = ?");
-    $stmt->bind_param("s", $status);
+// Get counts for all statuses
+function getRequestCount($conn, $status, $tab = null) {
+    $query = "SELECT COUNT(*) as count FROM product_requests WHERE status = ?";
+    $params = [$status];
+    $types = "s";
+    
+    if ($tab == 'new') {
+        $query .= " AND (assigned_farmer_id IS NULL OR assigned_farmer_id = 0)";
+    } elseif ($tab == 'assigned') {
+        $query .= " AND assigned_farmer_id IS NOT NULL AND assigned_farmer_id > 0";
+    }
+    
+    $stmt = $conn->prepare($query);
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
     return $result->fetch_assoc()['count'];
 }
 
-$pending_count = getRequestCount($conn, 'Pending');
-$reviewed_count = getRequestCount($conn, 'Reviewed');
-$approved_count = getRequestCount($conn, 'Approved');
-$accepted_count = getRequestCount($conn, 'Accepted');
-$rejected_count = getRequestCount($conn, 'Rejected');
-$completed_count = getRequestCount($conn, 'Completed');
-$total_all = $pending_count + $reviewed_count + $approved_count + $accepted_count + $rejected_count + $completed_count;
+// Get counts for each tab
+$new_count = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE status IN ('Pending', 'Reviewed') AND (assigned_farmer_id IS NULL OR assigned_farmer_id = 0)")->fetch_assoc()['count'];
+$assigned_count = $conn->query("SELECT COUNT(*) as count FROM product_requests WHERE status IN ('Approved', 'Accepted', 'Completed', 'Rejected') AND assigned_farmer_id IS NOT NULL AND assigned_farmer_id > 0")->fetch_assoc()['count'];
 
 // Get all farmers for dropdown
 $farmers_query = $conn->prepare("SELECT user_id, name, email, farm_location FROM users WHERE role = 'farmer' AND status = 'active' ORDER BY name");
@@ -616,57 +677,39 @@ if (isset($_SESSION['last_notification'])) {
         .badge-Rejected { background: rgba(231, 76, 60, 0.15); color: var(--rejected); }
         .badge-Completed { background: rgba(46, 204, 113, 0.15); color: var(--completed); }
         
-        .stat-card {
-            border-radius: 12px;
-            padding: 20px;
-            color: white;
-            height: 100%;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
-            cursor: pointer;
+        /* Tab Navigation */
+        .nav-tabs-custom {
+            border-bottom: 2px solid #e9ecef;
+            margin-bottom: 25px;
         }
         
-        .stat-card:hover {
-            transform: translateY(-5px);
+        .nav-tabs-custom .nav-link {
+            border: none;
+            color: #666;
+            padding: 12px 25px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            position: relative;
+            margin-right: 5px;
         }
         
-        .stat-card.pending {
-            background: linear-gradient(135deg, var(--pending), #e67e22);
+        .nav-tabs-custom .nav-link:hover {
+            color: var(--spice-red);
+            background: rgba(184, 92, 56, 0.05);
         }
         
-        .stat-card.reviewed {
-            background: linear-gradient(135deg, var(--reviewed), #2980b9);
+        .nav-tabs-custom .nav-link.active {
+            color: var(--spice-red);
+            border-bottom: 3px solid var(--spice-red);
+            background: transparent;
         }
         
-        .stat-card.approved {
-            background: linear-gradient(135deg, var(--approved), #219653);
+        .nav-tabs-custom .nav-link i {
+            margin-right: 8px;
         }
         
-        .stat-card.accepted {
-            background: linear-gradient(135deg, var(--accepted), #8e44ad);
-        }
-        
-        .stat-card.rejected {
-            background: linear-gradient(135deg, var(--rejected), #c0392b);
-        }
-        
-        .stat-card.completed {
-            background: linear-gradient(135deg, var(--completed), #27ae60);
-        }
-        
-        .stat-card.active {
-            box-shadow: 0 0 0 3px white, 0 0 0 6px var(--spice-red);
-        }
-        
-        .stat-card .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-        
-        .stat-card .stat-label {
-            font-size: 0.9rem;
-            opacity: 0.9;
+        .nav-tabs-custom .badge {
+            margin-left: 8px;
         }
         
         .filter-card {
@@ -770,7 +813,6 @@ if (isset($_SESSION['last_notification'])) {
             border-left: 3px solid var(--spice-green);
         }
         
-        /* Farmer Update Styles */
         .farmer-update-badge {
             background: rgba(52, 152, 219, 0.1);
             border: 1px solid rgba(52, 152, 219, 0.3);
@@ -806,6 +848,49 @@ if (isset($_SESSION['last_notification'])) {
             font-size: 0.7rem;
             color: #7f8c8d;
             margin-top: 5px;
+        }
+        
+        /* Review Modal Styles */
+        .review-modal .modal-content {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .review-modal .modal-header {
+            background: linear-gradient(135deg, var(--spice-blue), #2980b9);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+            padding: 20px;
+        }
+        
+        .review-modal .modal-body {
+            padding: 25px;
+        }
+        
+        .review-detail-item {
+            display: flex;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .review-detail-label {
+            width: 120px;
+            font-weight: 600;
+            color: var(--spice-dark);
+        }
+        
+        .review-detail-value {
+            flex: 1;
+            color: #2c3e50;
+        }
+        
+        .review-detail-value.highlight {
+            color: var(--spice-red);
+            font-weight: 600;
         }
         
         /* Confirmation Modal Styles */
@@ -925,14 +1010,6 @@ if (isset($_SESSION['last_notification'])) {
             background: #c0392b;
         }
         
-        .confirm-modal .btn-confirm.info {
-            background: #3498db;
-        }
-        
-        .confirm-modal .btn-confirm.info:hover {
-            background: #2980b9;
-        }
-        
         .reject-reason-textarea {
             border: 2px solid #e9ecef;
             border-radius: 10px;
@@ -990,11 +1067,9 @@ if (isset($_SESSION['last_notification'])) {
                             </p>
                         </div>
                         <div style="background: linear-gradient(135deg, var(--spice-red), #d35400); color: white; padding: 10px 20px; border-radius: 25px; font-weight: 500; box-shadow: 0 4px 10px rgba(184, 92, 56, 0.3); position: relative;">
-                            <i class="fas fa-inbox me-1"></i> Total Requests: <?php echo number_format($total_all); ?>
-                            <?php if(isset($last_notification) || isset($farmer_assignment)): ?>
-                            <span class="notification-badge" title="Recent notification">
-                                <i class="fas fa-bell"></i>
-                            </span>
+                            <i class="fas fa-inbox me-1"></i> Total: <?php echo number_format($new_count + $assigned_count); ?>
+                            <?php if($new_count > 0): ?>
+                            <span class="notification-badge" title="New requests"><?php echo $new_count; ?></span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -1039,115 +1114,38 @@ if (isset($_SESSION['last_notification'])) {
                 </div>
                 <?php endif; ?>
 
-                <!-- Status Stats -->
-                <div class="row mb-4">
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Pending" class="text-decoration-none">
-                            <div class="stat-card pending <?php echo $status_filter == 'Pending' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($pending_count); ?></div>
-                                        <div class="stat-label">Pending</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-clock"></i>
-                                    </div>
-                                </div>
-                            </div>
+                <!-- ========== TAB NAVIGATION ========== -->
+                <ul class="nav nav-tabs-custom" id="requestTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link <?php echo $current_tab == 'new' ? 'active' : ''; ?>" href="?tab=new">
+                            <i class="fas fa-inbox"></i> New Requests
+                            <?php if($new_count > 0): ?>
+                                <span class="badge bg-danger"><?php echo $new_count; ?></span>
+                            <?php endif; ?>
                         </a>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Reviewed" class="text-decoration-none">
-                            <div class="stat-card reviewed <?php echo $status_filter == 'Reviewed' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($reviewed_count); ?></div>
-                                        <div class="stat-label">Reviewed</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-eye"></i>
-                                    </div>
-                                </div>
-                            </div>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link <?php echo $current_tab == 'assigned' ? 'active' : ''; ?>" href="?tab=assigned">
+                            <i class="fas fa-user-tie"></i> Assigned & Updates
+                            <?php if($assigned_count > 0): ?>
+                                <span class="badge bg-info"><?php echo $assigned_count; ?></span>
+                            <?php endif; ?>
                         </a>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Approved" class="text-decoration-none">
-                            <div class="stat-card approved <?php echo $status_filter == 'Approved' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($approved_count); ?></div>
-                                        <div class="stat-label">Approved</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-check"></i>
-                                    </div>
-                                </div>
-                            </div>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link <?php echo $current_tab == 'all' ? 'active' : ''; ?>" href="?tab=all">
+                            <i class="fas fa-list"></i> All Requests
                         </a>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Accepted" class="text-decoration-none">
-                            <div class="stat-card accepted <?php echo $status_filter == 'Accepted' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($accepted_count); ?></div>
-                                        <div class="stat-label">Accepted</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-handshake"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Rejected" class="text-decoration-none">
-                            <div class="stat-card rejected <?php echo $status_filter == 'Rejected' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($rejected_count); ?></div>
-                                        <div class="stat-label">Rejected</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-times"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <div class="col-md-2">
-                        <a href="manage_requests.php?status=Completed" class="text-decoration-none">
-                            <div class="stat-card completed <?php echo $status_filter == 'Completed' ? 'active' : ''; ?>">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div>
-                                        <div class="stat-value"><?php echo number_format($completed_count); ?></div>
-                                        <div class="stat-label">Completed</div>
-                                    </div>
-                                    <div class="display-6 opacity-50">
-                                        <i class="fas fa-check-double"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                </div>
+                    </li>
+                </ul>
 
-                <!-- Filters -->
+                <!-- ========== FILTERS ========== -->
                 <div class="filter-card">
                     <div class="row">
-                        <div class="col-md-8">
-                            <h5 class="mb-3">
-                                <i class="fas fa-filter me-2" style="color: var(--spice-purple);"></i>
-                                Filter Requests
-                            </h5>
-                            <form method="GET" action="manage_requests.php" class="row g-3">
-                                <div class="col-md-6">
+                        <div class="col-md-12">
+                            <form method="GET" action="manage_requests.php" class="row g-3" id="filterForm">
+                                <input type="hidden" name="tab" value="<?php echo $current_tab; ?>">
+                                <div class="col-md-5">
                                     <label class="form-label fw-bold">Search</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-light">
@@ -1161,6 +1159,7 @@ if (isset($_SESSION['last_notification'])) {
                                 <div class="col-md-4">
                                     <label class="form-label fw-bold">Status</label>
                                     <select class="form-select" name="status">
+                                        <option value="">All Statuses</option>
                                         <option value="Pending" <?php echo $status_filter == 'Pending' ? 'selected' : ''; ?>>Pending</option>
                                         <option value="Reviewed" <?php echo $status_filter == 'Reviewed' ? 'selected' : ''; ?>>Reviewed</option>
                                         <option value="Approved" <?php echo $status_filter == 'Approved' ? 'selected' : ''; ?>>Approved</option>
@@ -1169,66 +1168,32 @@ if (isset($_SESSION['last_notification'])) {
                                         <option value="Completed" <?php echo $status_filter == 'Completed' ? 'selected' : ''; ?>>Completed</option>
                                     </select>
                                 </div>
-                                <div class="col-md-2 d-flex align-items-end">
+                                <div class="col-md-3 d-flex align-items-end">
                                     <div class="d-flex gap-2 w-100">
                                         <button type="submit" class="btn btn-primary flex-grow-1">
                                             <i class="fas fa-filter me-1"></i> Apply
                                         </button>
-                                        <a href="manage_requests.php" class="btn btn-outline-secondary">
+                                        <a href="manage_requests.php?tab=<?php echo $current_tab; ?>" class="btn btn-outline-secondary">
                                             <i class="fas fa-redo"></i>
                                         </a>
                                     </div>
                                 </div>
                             </form>
                         </div>
-                        <div class="col-md-4">
-                            <div class="bg-light rounded p-4 h-100">
-                                <h6 class="mb-3">
-                                    <i class="fas fa-chart-bar me-2" style="color: var(--spice-blue);"></i>
-                                    Quick Stats
-                                </h6>
-                                <div class="small">
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Pending:</span>
-                                        <strong class="text-warning"><?php echo $pending_count; ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Reviewed:</span>
-                                        <strong class="text-primary"><?php echo $reviewed_count; ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Approved:</span>
-                                        <strong class="text-success"><?php echo $approved_count; ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Accepted:</span>
-                                        <strong style="color: var(--accepted);"><?php echo $accepted_count; ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between mb-2">
-                                        <span class="text-muted">Rejected:</span>
-                                        <strong class="text-danger"><?php echo $rejected_count; ?></strong>
-                                    </div>
-                                    <div class="d-flex justify-content-between">
-                                        <span class="text-muted">Completed:</span>
-                                        <strong style="color: var(--completed);"><?php echo $completed_count; ?></strong>
-                                    </div>
-                                </div>
-                                <hr class="my-3">
-                                <div class="small text-muted">
-                                    <i class="fas fa-info-circle me-1"></i>
-                                    "Accepted" means farmer has accepted the request.
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
-                <!-- Requests List -->
+                <!-- ========== REQUESTS LIST ========== -->
                 <div class="analytics-card">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h5 class="mb-0">
                             <i class="fas fa-list me-2" style="color: var(--spice-red);"></i>
-                            Product Request List (<?php echo $total_requests; ?> requests)
+                            <?php 
+                            if($current_tab == 'new') echo 'New Requests';
+                            elseif($current_tab == 'assigned') echo 'Assigned & Updated Requests';
+                            else echo 'All Requests';
+                            ?> 
+                            (<?php echo $total_requests; ?>)
                         </h5>
                         <div class="text-muted small">
                             <i class="fas fa-user-tie me-1"></i>
@@ -1242,7 +1207,6 @@ if (isset($_SESSION['last_notification'])) {
                             $latest_farmer_update = '';
                             if (!empty($request['admin_notes']) && strpos($request['admin_notes'], '[Farmer Update:') !== false) {
                                 $notes = $request['admin_notes'];
-                                // Get the last line that contains Farmer Update
                                 $lines = explode("\n", $notes);
                                 foreach ($lines as $line) {
                                     if (strpos($line, '[Farmer Update:') !== false) {
@@ -1251,7 +1215,6 @@ if (isset($_SESSION['last_notification'])) {
                                 }
                             }
                             
-                            // Check if this is a rejection with reason
                             $reject_reason = '';
                             if ($request['status'] == 'Rejected' && !empty($request['admin_notes']) && strpos($request['admin_notes'], '[Farmer Update:') === false) {
                                 $reject_reason = $request['admin_notes'];
@@ -1326,7 +1289,6 @@ if (isset($_SESSION['last_notification'])) {
                                             </div>
                                         <?php endif; ?>
                                         
-                                        <!-- Show Farmer Update if exists -->
                                         <?php if(!empty($latest_farmer_update)): ?>
                                         <div class="farmer-update-box mt-2">
                                             <div class="update-header">
@@ -1341,7 +1303,6 @@ if (isset($_SESSION['last_notification'])) {
                                         </div>
                                         <?php endif; ?>
                                         
-                                        <!-- Show Reject Reason if exists -->
                                         <?php if(!empty($reject_reason)): ?>
                                         <div class="reject-reason-box mt-2">
                                             <div class="reason-header">
@@ -1393,10 +1354,17 @@ if (isset($_SESSION['last_notification'])) {
                                 
                                 <!-- Actions -->
                                 <div class="col-md-3">
-                                    <div class="action-buttons d-flex justify-content-end" id="actions-<?php echo $request['request_id']; ?>">
+                                    <div class="action-buttons d-flex flex-wrap justify-content-end" id="actions-<?php echo $request['request_id']; ?>">
                                         <?php if($request['status'] == 'Pending'): ?>
-                                            <button type="button" class="btn btn-info btn-sm me-1 btn-review" 
-                                                    onclick="showConfirmModal('review', <?php echo $request['request_id']; ?>, 'Mark this request as reviewed?')">
+                                            <!-- ========== UPDATED: Review button opens modal ========== -->
+                                            <button type="button" class="btn btn-info btn-sm me-1 btn-review-modal" 
+                                                    data-request-id="<?php echo $request['request_id']; ?>"
+                                                    data-product-name="<?php echo htmlspecialchars($request['product_name']); ?>"
+                                                    data-customer-name="<?php echo htmlspecialchars($request['customer_name']); ?>"
+                                                    data-quantity="<?php echo $request['quantity_requested']; ?>"
+                                                    data-urgency="<?php echo $request['urgency']; ?>"
+                                                    data-description="<?php echo htmlspecialchars($request['description']); ?>"
+                                                    data-created="<?php echo date('M d, Y', strtotime($request['created_at'])); ?>">
                                                 <i class="fas fa-eye"></i> Review
                                             </button>
                                             
@@ -1470,9 +1438,8 @@ if (isset($_SESSION['last_notification'])) {
                                         <?php endif; ?>
                                     </div>
                                     
-                                    <!-- Show farmer info if assigned -->
                                     <?php if(!empty($request['assigned_farmer_id'])): ?>
-                                        <div class="small text-muted mt-1">
+                                        <div class="small text-muted mt-1 text-end">
                                             <i class="fas fa-user-tie me-1"></i> 
                                             <?php if(!empty($request['farmer_name'])): ?>
                                                 Assigned to: <?php echo htmlspecialchars($request['farmer_name']); ?>
@@ -1496,12 +1463,12 @@ if (isset($_SESSION['last_notification'])) {
                                 if(!empty($search)) {
                                     echo "No requests found matching '" . htmlspecialchars($search) . "'";
                                 } else {
-                                    echo "No requests with status '" . htmlspecialchars($status_filter) . "' found.";
+                                    echo "No requests in this category.";
                                 }
                                 ?>
                             </p>
-                            <a href="manage_requests.php" class="btn btn-primary">
-                                <i class="fas fa-redo me-1"></i> View All Requests
+                            <a href="manage_requests.php?tab=<?php echo $current_tab; ?>" class="btn btn-primary">
+                                <i class="fas fa-redo me-1"></i> Refresh
                             </a>
                         </div>
                     <?php endif; ?>
@@ -1512,7 +1479,7 @@ if (isset($_SESSION['last_notification'])) {
                 <nav aria-label="Page navigation" class="mt-4">
                     <ul class="pagination justify-content-center">
                         <li class="page-item <?php echo $page == 1 ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="manage_requests.php?page=<?php echo $page - 1; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
+                            <a class="page-link" href="manage_requests.php?page=<?php echo $page - 1; ?>&tab=<?php echo $current_tab; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
                                 <i class="fas fa-chevron-left me-1"></i> Previous
                             </a>
                         </li>
@@ -1520,7 +1487,7 @@ if (isset($_SESSION['last_notification'])) {
                         <?php for($i = 1; $i <= $total_pages; $i++): ?>
                             <?php if($i == 1 || $i == $total_pages || ($i >= $page - 2 && $i <= $page + 2)): ?>
                             <li class="page-item <?php echo $page == $i ? 'active' : ''; ?>">
-                                <a class="page-link" href="manage_requests.php?page=<?php echo $i; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
+                                <a class="page-link" href="manage_requests.php?page=<?php echo $i; ?>&tab=<?php echo $current_tab; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
                                     <?php echo $i; ?>
                                 </a>
                             </li>
@@ -1532,13 +1499,61 @@ if (isset($_SESSION['last_notification'])) {
                         <?php endfor; ?>
                         
                         <li class="page-item <?php echo $page == $total_pages ? 'disabled' : ''; ?>">
-                            <a class="page-link" href="manage_requests.php?page=<?php echo $page + 1; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
+                            <a class="page-link" href="manage_requests.php?page=<?php echo $page + 1; ?>&tab=<?php echo $current_tab; ?>&status=<?php echo urlencode($status_filter); ?>&search=<?php echo urlencode($search); ?>">
                                 Next <i class="fas fa-chevron-right ms-1"></i>
                             </a>
                         </li>
                     </ul>
                 </nav>
                 <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== REVIEW MODAL ========== -->
+    <div class="modal fade review-modal" id="reviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-eye me-2"></i> Review Request
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Product:</span>
+                        <span class="review-detail-value highlight" id="reviewProductName"></span>
+                    </div>
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Customer:</span>
+                        <span class="review-detail-value" id="reviewCustomerName"></span>
+                    </div>
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Requested On:</span>
+                        <span class="review-detail-value" id="reviewCreatedDate"></span>
+                    </div>
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Quantity:</span>
+                        <span class="review-detail-value" id="reviewQuantity"></span>
+                    </div>
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Urgency:</span>
+                        <span class="review-detail-value" id="reviewUrgency"></span>
+                    </div>
+                    <div class="review-detail-item">
+                        <span class="review-detail-label">Description:</span>
+                        <span class="review-detail-value" id="reviewDescription"></span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </button>
+                    <button type="button" class="btn btn-info" id="confirmReviewBtn">
+                        <i class="fas fa-check me-1"></i> Mark as Reviewed
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1564,7 +1579,6 @@ if (isset($_SESSION['last_notification'])) {
                             <select class="form-select" name="farmer_id" id="farmerSelect" required>
                                 <option value="">-- Select a farmer --</option>
                                 <?php
-                                // Reset farmers result pointer
                                 $farmers_result->data_seek(0);
                                 while($farmer = $farmers_result->fetch_assoc()): ?>
                                     <option value="<?php echo $farmer['user_id']; ?>">
@@ -1666,6 +1680,70 @@ if (isset($_SESSION['last_notification'])) {
                 $('.alert').alert('close');
             }, 5000);
             
+            // ========== REVIEW MODAL HANDLER ==========
+            $('.btn-review-modal').click(function() {
+                var requestId = $(this).data('request-id');
+                var productName = $(this).data('product-name');
+                var customerName = $(this).data('customer-name');
+                var quantity = $(this).data('quantity');
+                var urgency = $(this).data('urgency');
+                var description = $(this).data('description');
+                var createdDate = $(this).data('created');
+                
+                $('#reviewProductName').text(productName);
+                $('#reviewCustomerName').text(customerName);
+                $('#reviewQuantity').text(quantity + ' kg');
+                $('#reviewUrgency').text(urgency);
+                $('#reviewDescription').text(description || 'No description provided');
+                $('#reviewCreatedDate').text(createdDate);
+                
+                // Set urgency color
+                var urgencySpan = $('#reviewUrgency');
+                urgencySpan.removeClass('text-danger text-warning text-success');
+                if(urgency == 'High') urgencySpan.addClass('text-danger fw-bold');
+                else if(urgency == 'Medium') urgencySpan.addClass('text-warning fw-bold');
+                else urgencySpan.addClass('text-success');
+                
+                // Set confirm button action
+                $('#confirmReviewBtn').off('click').on('click', function() {
+                    submitReview(requestId);
+                });
+                
+                $('#reviewModal').modal('show');
+            });
+            
+            // Submit review via AJAX
+            function submitReview(requestId) {
+                var csrfToken = '<?php echo $_SESSION['csrf_token']; ?>';
+                
+                $.ajax({
+                    url: '',
+                    type: 'POST',
+                    data: {
+                        action: 'review',
+                        request_id: requestId,
+                        csrf_token: csrfToken
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        $('#reviewModal').modal('hide');
+                        if (response.success) {
+                            showNotification('success', response.message);
+                            // Reload page after short delay to show updated status
+                            setTimeout(function() {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            showNotification('danger', response.message);
+                        }
+                    },
+                    error: function() {
+                        $('#reviewModal').modal('hide');
+                        showNotification('danger', 'Error processing request');
+                    }
+                });
+            }
+            
             // Farmer assignment modal
             $('.btn-assign-farmer').click(function() {
                 var requestId = $(this).data('request-id');
@@ -1675,7 +1753,7 @@ if (isset($_SESSION['last_notification'])) {
             
             // Handle form submission with AJAX
             $('#assignFarmerForm').submit(function(e) {
-                e.preventDefault(); // Prevent default form submission
+                e.preventDefault();
                 
                 var farmerSelect = $('#farmerSelect').val();
                 if (!farmerSelect) {
@@ -1701,24 +1779,20 @@ if (isset($_SESSION['last_notification'])) {
                     dataType: 'json',
                     success: function(response) {
                         if (response.success) {
-                            // Update the request card dynamically
                             updateRequestCard(requestId, response.farmer_name, response.farmer_email);
-                            
-                            // Show success message
                             showNotification('success', response.message);
-                            
-                            // Close modal and reset
                             $('#assignFarmerModal').modal('hide');
                             $('#farmerSelect').val('');
+                            setTimeout(function() {
+                                location.reload();
+                            }, 1500);
                         } else {
-                            // Show error message
                             showNotification('danger', response.message);
                         }
                         submitBtn.html(originalText);
                         submitBtn.prop('disabled', false);
                     },
                     error: function(xhr, status, error) {
-                        // Show error message
                         showNotification('danger', 'Error: ' + error);
                         submitBtn.html(originalText);
                         submitBtn.prop('disabled', false);
@@ -1768,7 +1842,6 @@ if (isset($_SESSION['last_notification'])) {
                 detail.html('');
             }
             
-            // Set confirm button action
             confirmBtn.off('click').on('click', function() {
                 executeAction(action, requestId);
             });
@@ -1785,9 +1858,10 @@ if (isset($_SESSION['last_notification'])) {
         // Execute action
         function executeAction(action, requestId) {
             var csrfToken = '<?php echo $_SESSION['csrf_token']; ?>';
-            var url = 'manage_requests.php?action=' + action + '&id=' + requestId + '&csrf_token=' + csrfToken;
+            var currentTab = '<?php echo $current_tab; ?>';
+            var url = 'manage_requests.php?action=' + action + '&id=' + requestId + '&csrf_token=' + csrfToken + '&tab=' + currentTab;
             
-            if (action === 'review' || action === 'approve' || action === 'complete' || action === 'delete') {
+            if (action === 'approve' || action === 'complete' || action === 'delete') {
                 window.location.href = url;
             }
         }
@@ -1818,29 +1892,11 @@ if (isset($_SESSION['last_notification'])) {
                     '</div>'
                 );
             }
-            
-            // Update actions
-            var newActions = '';
-            newActions += '<button type="button" class="btn btn-secondary btn-sm me-1 btn-complete" ';
-            newActions += 'onclick="showConfirmModal(\'complete\', ' + requestId + ', \'Mark this request as completed? Customer will be notified.\', \'success\')">';
-            newActions += '<i class="fas fa-check-double"></i> Complete';
-            newActions += '</button>';
-            
-            <?php if($admin_role === 'super_admin'): ?>
-            newActions += '<button type="button" class="btn btn-outline-danger btn-sm btn-delete" ';
-            newActions += 'onclick="showConfirmModal(\'delete\', ' + requestId + ', \'Delete this request permanently? This cannot be undone.\', \'danger\')">';
-            newActions += '<i class="fas fa-trash"></i>';
-            newActions += '</button>';
-            <?php endif; ?>
-            
-            $('#actions-' + requestId).html(newActions);
         }
         
         function showNotification(type, message) {
-            // Remove existing notifications
             $('.alert-dismissible').remove();
             
-            // Create new notification
             var alertClass = 'alert-' + type;
             var icon = type == 'success' ? 'check-circle' : 
                       type == 'danger' ? 'exclamation-circle' : 
@@ -1851,10 +1907,8 @@ if (isset($_SESSION['last_notification'])) {
                 '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
                 '</div>';
             
-            // Insert after header
             $('.dashboard-header').after(alertHtml);
             
-            // Auto dismiss after 5 seconds
             setTimeout(function() {
                 $('.alert').alert('close');
             }, 5000);

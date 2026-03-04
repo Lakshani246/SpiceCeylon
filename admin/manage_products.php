@@ -15,33 +15,67 @@ $admin_query->bind_param("i", $admin_id);
 $admin_query->execute();
 $admin = $admin_query->get_result()->fetch_assoc();
 
-// Handle actions
-if (isset($_GET['action']) && isset($_GET['id'])) {
-    $product_id = (int)$_GET['id'];
-    $action = $_GET['action'];
+// ========== FIXED: Handle AJAX actions for approve/reject ==========
+if (isset($_POST['ajax_action']) && isset($_POST['product_id'])) {
+    $product_id = (int)$_POST['product_id'];
+    $action = $_POST['ajax_action'];
+    header('Content-Type: application/json');
+    
+    $response = ['success' => false, 'message' => ''];
     
     if ($action == 'approve') {
         $conn->query("UPDATE products SET admin_approved = 'approved', approved_by = '$admin_id', approved_at = NOW() WHERE product_id = '$product_id'");
-        $_SESSION['message'] = "Product approved successfully!";
-        $_SESSION['message_type'] = 'success';
+        $response['success'] = true;
+        $response['message'] = "Product approved successfully!";
     }
     elseif ($action == 'reject') {
-        if (isset($_POST['rejection_reason'])) {
-            $reason = $conn->real_escape_string($_POST['rejection_reason']);
-            $conn->query("UPDATE products SET admin_approved = 'rejected', approved_by = '$admin_id', approved_at = NOW(), rejection_reason = '$reason' WHERE product_id = '$product_id'");
-            $_SESSION['message'] = "Product rejected!";
-            $_SESSION['message_type'] = 'success';
-        } else {
-            $_SESSION['message'] = "Please provide a rejection reason!";
-            $_SESSION['message_type'] = 'danger';
-        }
-    }
-    elseif ($action == 'view') {
-        header("Location: view_product.php?id=$product_id");
-        exit;
+        $reason = $conn->real_escape_string($_POST['rejection_reason']);
+        $conn->query("UPDATE products SET admin_approved = 'rejected', approved_by = '$admin_id', approved_at = NOW(), rejection_reason = '$reason' WHERE product_id = '$product_id'");
+        $response['success'] = true;
+        $response['message'] = "Product rejected!";
     }
     
-    header("Location: manage_products.php");
+    echo json_encode($response);
+    exit;
+}
+
+// ========== Handle AJAX request for product data ==========
+if (isset($_GET['ajax']) && $_GET['ajax'] == 'get_product' && isset($_GET['id'])) {
+    $product_id = (int)$_GET['id'];
+    header('Content-Type: application/json');
+    
+    $response = ['success' => false];
+    
+    // Get product details
+    $product_query = "SELECT p.*, u.name as farmer_name, u.email as farmer_email, u.phone as farmer_phone, u.farm_location 
+                     FROM products p 
+                     JOIN users u ON p.farmer_id = u.user_id 
+                     WHERE p.product_id = '$product_id'";
+    $product_result = $conn->query($product_query);
+    
+    if ($product_result && $product_result->num_rows > 0) {
+        $product = $product_result->fetch_assoc();
+        
+        // Check image path
+        $image_path = '';
+        if ($product['image']) {
+            if (file_exists('../assets/images/' . $product['image'])) {
+                $image_path = '../assets/images/' . $product['image'];
+            } elseif (file_exists('../uploads/products/' . $product['image'])) {
+                $image_path = '../uploads/products/' . $product['image'];
+            } else {
+                $image_path = '../assets/images/default-spice.jpg';
+            }
+        } else {
+            $image_path = '../assets/images/default-spice.jpg';
+        }
+        $product['image_url'] = $image_path;
+        
+        $response['success'] = true;
+        $response['product'] = $product;
+    }
+    
+    echo json_encode($response);
     exit;
 }
 
@@ -342,6 +376,276 @@ unset($_SESSION['message_type']);
             font-weight: 600;
             display: inline-block;
         }
+        
+        /* ========== MODAL STYLES ========== */
+        .modal-content {
+            border: none;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            padding: 20px 25px;
+            border-bottom: none;
+            color: white;
+        }
+        
+        .modal-header.approve-header {
+            background: linear-gradient(135deg, var(--approved), #219653);
+        }
+        
+        .modal-header.reject-header {
+            background: linear-gradient(135deg, var(--rejected), #c0392b);
+        }
+        
+        .modal-header .modal-title {
+            font-weight: 600;
+            font-size: 1.3rem;
+        }
+        
+        .modal-header .btn-close {
+            filter: invert(1);
+            opacity: 0.8;
+            transition: all 0.3s;
+        }
+        
+        .modal-header .btn-close:hover {
+            opacity: 1;
+            transform: rotate(90deg);
+        }
+        
+        .modal-body {
+            padding: 30px;
+            background: #f8f9fa;
+        }
+        
+        .modal-footer {
+            padding: 20px 25px;
+            border-top: 1px solid #e9ecef;
+            background: white;
+        }
+        
+        .modal-dialog-centered {
+            display: flex;
+            align-items: center;
+            min-height: calc(100% - 3.5rem);
+        }
+        
+        @media (min-width: 576px) {
+            .modal-dialog-centered {
+                min-height: calc(100% - 1.75rem);
+            }
+        }
+        
+        /* Product Detail Card in Modal */
+        .product-detail-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-left: 4px solid var(--spice-green);
+        }
+        
+        .product-detail-card h6 {
+            color: var(--spice-dark);
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f1f1f1;
+        }
+        
+        .detail-item {
+            display: flex;
+            margin-bottom: 12px;
+        }
+        
+        .detail-label {
+            width: 120px;
+            color: #7f8c8d;
+            font-weight: 500;
+        }
+        
+        .detail-value {
+            flex: 1;
+            color: var(--spice-dark);
+            font-weight: 500;
+        }
+        
+        .modal-product-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: contain;
+            border-radius: 8px;
+            background: #f8f9fa;
+            padding: 10px;
+        }
+        
+        /* ========== CENTERED CONFIRMATION MODALS ========== */
+        .confirm-modal .modal-content {
+            border-radius: 16px;
+        }
+        
+        .confirm-modal .modal-body {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .confirm-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .confirm-icon.approve {
+            color: var(--approved);
+        }
+        
+        .confirm-icon.reject {
+            color: var(--rejected);
+        }
+        
+        /* ========== LOADING SPINNER ========== */
+        .modal-spinner {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--spice-green);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* ========== CUSTOM ALERT ========== */
+        .alert-custom {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 350px;
+            max-width: 450px;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            z-index: 9999;
+            animation: slideInRight 0.5s ease, fadeOut 0.5s ease 4.5s forwards;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border-left: 6px solid;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            to {
+                opacity: 0;
+                transform: translateX(100%);
+                visibility: hidden;
+            }
+        }
+        
+        .alert-custom.success {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        
+        .alert-custom.warning {
+            background: linear-gradient(135deg, #fff3cd, #ffe8a1);
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        
+        .alert-custom.danger {
+            background: linear-gradient(135deg, #f8d7da, #f5c6cb);
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        
+        .alert-custom.info {
+            background: linear-gradient(135deg, #d1ecf1, #bee5eb);
+            border-left-color: #17a2b8;
+            color: #0c5460;
+        }
+        
+        .alert-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+        
+        .alert-custom.success .alert-icon {
+            background: #28a745;
+            color: white;
+        }
+        
+        .alert-custom.warning .alert-icon {
+            background: #ffc107;
+            color: white;
+        }
+        
+        .alert-custom.danger .alert-icon {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .alert-custom.info .alert-icon {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .alert-content {
+            flex: 1;
+        }
+        
+        .alert-title {
+            font-weight: 700;
+            margin-bottom: 5px;
+            font-size: 1rem;
+        }
+        
+        .alert-message {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .alert-close {
+            color: inherit;
+            opacity: 0.5;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+        
+        .alert-close:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -370,15 +674,6 @@ unset($_SESSION['message_type']);
                         </div>
                     </div>
                 </div>
-
-                <!-- Messages -->
-                <?php if($message): ?>
-                <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show mb-4" role="alert">
-                    <i class="fas fa-<?php echo $message_type == 'success' ? 'check-circle' : 'info-circle'; ?> me-2"></i> 
-                    <?php echo htmlspecialchars($message); ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                <?php endif; ?>
 
                 <!-- Status Stats -->
                 <div class="row mb-4">
@@ -645,66 +940,29 @@ unset($_SESSION['message_type']);
                                         </span>
                                     </div>
                                     <div class="action-buttons d-flex justify-content-end mt-2">
-                                        <a href="view_product.php?id=<?php echo $product['product_id']; ?>" 
-                                           class="btn btn-outline-primary btn-sm me-1">
+                                        <!-- View Button with AJAX -->
+                                        <button type="button" class="btn btn-outline-primary btn-sm me-1 view-product-btn" 
+                                                data-product-id="<?php echo $product['product_id']; ?>">
                                             <i class="fas fa-eye"></i> View
-                                        </a>
+                                        </button>
                                         
                                         <?php if($product['admin_approved'] == 'pending'): ?>
-                                            <a href="manage_products.php?action=approve&id=<?php echo $product['product_id']; ?>" 
-                                               class="btn btn-success btn-sm me-1"
-                                               onclick="return confirm('Approve this product? It will appear in the marketplace.')">
+                                            <button class="btn btn-success btn-sm me-1" onclick="confirmApprove(<?php echo $product['product_id']; ?>, '<?php echo htmlspecialchars($product['name']); ?>', '<?php echo htmlspecialchars($product['farmer_name']); ?>')">
                                                 <i class="fas fa-check"></i> Approve
-                                            </a>
-                                            <button class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $product['product_id']; ?>">
+                                            </button>
+                                            <button class="btn btn-danger btn-sm" onclick="showRejectModal(<?php echo $product['product_id']; ?>, '<?php echo htmlspecialchars($product['name']); ?>', '<?php echo htmlspecialchars($product['farmer_name']); ?>')">
                                                 <i class="fas fa-times"></i> Reject
                                             </button>
                                         <?php elseif($product['admin_approved'] == 'approved'): ?>
-                                            <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#rejectModal<?php echo $product['product_id']; ?>">
+                                            <button class="btn btn-warning btn-sm" onclick="showRejectModal(<?php echo $product['product_id']; ?>, '<?php echo htmlspecialchars($product['name']); ?>', '<?php echo htmlspecialchars($product['farmer_name']); ?>')">
                                                 <i class="fas fa-undo me-1"></i> Unapprove
                                             </button>
                                         <?php elseif($product['admin_approved'] == 'rejected'): ?>
-                                            <a href="manage_products.php?action=approve&id=<?php echo $product['product_id']; ?>" 
-                                               class="btn btn-success btn-sm"
-                                               onclick="return confirm('Approve this product? It will appear in the marketplace.')">
+                                            <button class="btn btn-success btn-sm" onclick="confirmApprove(<?php echo $product['product_id']; ?>, '<?php echo htmlspecialchars($product['name']); ?>', '<?php echo htmlspecialchars($product['farmer_name']); ?>')">
                                                 <i class="fas fa-check"></i> Approve
-                                            </a>
+                                            </button>
                                         <?php endif; ?>
                                     </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Reject Modal -->
-                        <div class="modal fade" id="rejectModal<?php echo $product['product_id']; ?>" tabindex="-1">
-                            <div class="modal-dialog">
-                                <div class="modal-content">
-                                    <form method="POST" action="manage_products.php?action=reject&id=<?php echo $product['product_id']; ?>">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">
-                                                <i class="fas fa-exclamation-triangle me-2 text-danger"></i>
-                                                Reject Product: <?php echo htmlspecialchars($product['name']); ?>
-                                            </h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <p class="text-muted mb-3">
-                                                Rejecting product from <strong><?php echo htmlspecialchars($product['farmer_name']); ?></strong>:
-                                            </p>
-                                            <div class="mb-3">
-                                                <label class="form-label fw-bold">Reason for Rejection</label>
-                                                <textarea class="form-control" name="rejection_reason" rows="4" required 
-                                                          placeholder="Example: Image quality is poor, description is incomplete, price seems too high, etc."></textarea>
-                                                <div class="form-text">This reason will be shown to the farmer.</div>
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                            <button type="submit" class="btn btn-danger">
-                                                <i class="fas fa-times me-1"></i> Reject Product
-                                            </button>
-                                        </div>
-                                    </form>
                                 </div>
                             </div>
                         </div>
@@ -769,11 +1027,359 @@ unset($_SESSION['message_type']);
         </div>
     </div>
 
+    <!-- AJAX Modal for Product Details -->
+    <div class="modal fade" id="productDetailModal" tabindex="-1" aria-labelledby="productDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="productDetailModalLabel">
+                        <i class="fas fa-leaf me-2"></i>
+                        Product Details
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="productModalContent">
+                    <div class="modal-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading product details...</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal (Single Modal for All Approve/Reject Actions) -->
+    <div class="modal fade" id="actionConfirmModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" id="actionModalHeader">
+                    <h5 class="modal-title" id="actionModalTitle">
+                        <i class="fas fa-check-circle me-2"></i>
+                        Confirm Action
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center" id="actionModalBody">
+                    <div class="confirm-icon" id="actionModalIcon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h5 class="mb-3" id="actionModalQuestion">Are you sure?</h5>
+                    <p class="text-muted mb-0" id="actionModalProductName"></p>
+                    <p class="text-muted" id="actionModalFarmerName"></p>
+                    
+                    <!-- Rejection Reason Field (hidden by default) -->
+                    <div id="rejectionReasonField" style="display: none;" class="mt-3">
+                        <textarea class="form-control" id="rejectionReason" rows="3" placeholder="Reason for rejection..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center" id="actionModalFooter">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </button>
+                    <button type="button" class="btn" id="actionConfirmBtn">
+                        <i class="fas fa-check me-1"></i> Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto-dismiss alerts after 5 seconds
+        // Store current action data
+        let currentAction = {
+            productId: null,
+            actionType: null,
+            productName: '',
+            farmerName: ''
+        };
+        
+        // Show approve confirmation
+        function confirmApprove(productId, productName, farmerName) {
+            currentAction = {
+                productId: productId,
+                actionType: 'approve',
+                productName: productName,
+                farmerName: farmerName
+            };
+            
+            // Update modal for approve
+            $('#actionModalHeader').removeClass('reject-header').addClass('approve-header');
+            $('#actionModalTitle').html('<i class="fas fa-check-circle me-2"></i> Confirm Approval');
+            $('#actionModalIcon').html('<i class="fas fa-check-circle" style="color: #27ae60; font-size: 4rem;"></i>');
+            $('#actionModalQuestion').text('Approve this product?');
+            $('#actionModalProductName').text('Product: ' + productName);
+            $('#actionModalFarmerName').text('Farmer: ' + farmerName);
+            $('#rejectionReasonField').hide();
+            
+            // Update confirm button
+            $('#actionConfirmBtn').removeClass('btn-danger btn-warning').addClass('btn-success').html('<i class="fas fa-check me-1"></i> Approve Product');
+            
+            // Show modal
+            $('#actionConfirmModal').modal('show');
+        }
+        
+        // Show reject modal
+        function showRejectModal(productId, productName, farmerName) {
+            currentAction = {
+                productId: productId,
+                actionType: 'reject',
+                productName: productName,
+                farmerName: farmerName
+            };
+            
+            // Update modal for reject
+            $('#actionModalHeader').removeClass('approve-header').addClass('reject-header');
+            $('#actionModalTitle').html('<i class="fas fa-exclamation-triangle me-2"></i> Reject Product');
+            $('#actionModalIcon').html('<i class="fas fa-times-circle" style="color: #e74c3c; font-size: 4rem;"></i>');
+            $('#actionModalQuestion').text('Reject this product?');
+            $('#actionModalProductName').text('Product: ' + productName);
+            $('#actionModalFarmerName').text('Farmer: ' + farmerName);
+            $('#rejectionReasonField').show();
+            
+            // Update confirm button
+            $('#actionConfirmBtn').removeClass('btn-success btn-warning').addClass('btn-danger').html('<i class="fas fa-times me-1"></i> Reject Product');
+            
+            // Show modal
+            $('#actionConfirmModal').modal('show');
+        }
+        
+        // Handle confirm button click
+        $('#actionConfirmBtn').on('click', function() {
+            const productId = currentAction.productId;
+            const actionType = currentAction.actionType;
+            
+            if (!productId || !actionType) return;
+            
+            // Prepare data
+            let postData = {
+                ajax_action: actionType,
+                product_id: productId
+            };
+            
+            // Add rejection reason if rejecting
+            if (actionType === 'reject') {
+                const reason = $('#rejectionReason').val().trim();
+                if (!reason) {
+                    alert('Please provide a rejection reason');
+                    return;
+                }
+                postData.rejection_reason = reason;
+            }
+            
+            // Close modal
+            $('#actionConfirmModal').modal('hide');
+            
+            // Show loading indicator (optional)
+            $('body').append('<div class="modal-spinner" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999;"><div class="spinner"></div><p>Processing...</p></div>');
+            
+            // Send AJAX request
+            $.ajax({
+                url: 'manage_products.php',
+                type: 'POST',
+                data: postData,
+                dataType: 'json',
+                success: function(response) {
+                    $('.modal-spinner').remove();
+                    
+                    if (response.success) {
+                        // Show success message
+                        showCustomAlert(response.message, 'success');
+                        
+                        // Reload page after 1 second to reflect changes
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        showCustomAlert(response.message || 'Action failed', 'danger');
+                    }
+                },
+                error: function() {
+                    $('.modal-spinner').remove();
+                    showCustomAlert('An error occurred', 'danger');
+                }
+            });
+        });
+        
+        // Custom alert function
+        function showCustomAlert(message, type) {
+            const icon = type === 'success' ? 'fa-check-circle' : (type === 'danger' ? 'fa-times-circle' : 'fa-info-circle');
+            const title = type === 'success' ? 'Success!' : (type === 'danger' ? 'Error!' : 'Info!');
+            
+            const alertHtml = `
+                <div class="alert-custom ${type}" id="customAlert">
+                    <div class="alert-icon">
+                        <i class="fas ${icon}"></i>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">${title}</div>
+                        <div class="alert-message">${message}</div>
+                    </div>
+                    <div class="alert-close" onclick="this.parentElement.remove()">
+                        <i class="fas fa-times"></i>
+                    </div>
+                </div>
+            `;
+            
+            $('body').append(alertHtml);
+            
+            setTimeout(function() {
+                $('#customAlert').fadeOut('slow', function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
+        
+        // Clear rejection reason when modal is hidden
+        $('#actionConfirmModal').on('hidden.bs.modal', function() {
+            $('#rejectionReason').val('');
+        });
+        
+        // View product details (your existing code)
         $(document).ready(function() {
+            $('.view-product-btn').on('click', function(e) {
+                e.preventDefault();
+                const productId = $(this).data('product-id');
+                
+                $('#productDetailModal').modal('show');
+                
+                $.ajax({
+                    url: 'manage_products.php?ajax=get_product&id=' + productId,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            displayProductDetails(response);
+                        } else {
+                            $('#productModalContent').html('<div class="alert alert-danger">Failed to load product details.</div>');
+                        }
+                    },
+                    error: function() {
+                        $('#productModalContent').html('<div class="alert alert-danger">Error loading product details.</div>');
+                    }
+                });
+            });
+            
+            function displayProductDetails(data) {
+                const product = data.product;
+                
+                let statusClass = 'badge-pending';
+                let statusIcon = 'fa-clock';
+                let statusText = 'Pending';
+                
+                if (product.admin_approved === 'approved') {
+                    statusClass = 'badge-approved';
+                    statusIcon = 'fa-check-circle';
+                    statusText = 'Approved';
+                } else if (product.admin_approved === 'rejected') {
+                    statusClass = 'badge-rejected';
+                    statusIcon = 'fa-times-circle';
+                    statusText = 'Rejected';
+                }
+                
+                const html = `
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="product-detail-card">
+                                <h6><i class="fas fa-image me-2" style="color: #3498db;"></i>Product Image</h6>
+                                <div class="text-center">
+                                    <img src="${product.image_url}" alt="${product.name}" class="modal-product-image">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <div class="product-detail-card">
+                                <h6><i class="fas fa-info-circle me-2" style="color: #3498db;"></i>Product Information</h6>
+                                <div class="detail-item">
+                                    <span class="detail-label">Name:</span>
+                                    <span class="detail-value"><strong>${product.name}</strong></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Category:</span>
+                                    <span class="detail-value">${product.category || 'Uncategorized'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Price:</span>
+                                    <span class="detail-value"><strong class="text-success">LKR ${parseFloat(product.price).toFixed(2)}</strong></span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Stock:</span>
+                                    <span class="detail-value">${product.stock} kg</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Status:</span>
+                                    <span class="detail-value">
+                                        <span class="status-badge ${statusClass}">
+                                            <i class="fas ${statusIcon} me-1"></i> ${statusText}
+                                        </span>
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Submitted:</span>
+                                    <span class="detail-value">${new Date(product.created_at).toLocaleDateString()}</span>
+                                </div>
+                                ${product.approved_at ? `
+                                <div class="detail-item">
+                                    <span class="detail-label">Approved:</span>
+                                    <span class="detail-value">${new Date(product.approved_at).toLocaleDateString()}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="product-detail-card">
+                                <h6><i class="fas fa-align-left me-2" style="color: #27ae60;"></i>Description</h6>
+                                <p>${product.description || 'No description provided.'}</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="product-detail-card">
+                                <h6><i class="fas fa-user me-2" style="color: #27ae60;"></i>Farmer Information</h6>
+                                <div class="detail-item">
+                                    <span class="detail-label">Name:</span>
+                                    <span class="detail-value">${product.farmer_name}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Email:</span>
+                                    <span class="detail-value">${product.farmer_email}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Phone:</span>
+                                    <span class="detail-value">${product.farmer_phone || 'Not provided'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span class="detail-label">Location:</span>
+                                    <span class="detail-value">${product.farm_location || 'Not specified'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    ${product.rejection_reason ? `
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <div class="product-detail-card" style="border-left-color: #e74c3c;">
+                                <h6><i class="fas fa-exclamation-triangle me-2" style="color: #e74c3c;"></i>Rejection Reason</h6>
+                                <p class="text-danger">${product.rejection_reason}</p>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+                `;
+                
+                $('#productModalContent').html(html);
+            }
+            
+            // Auto-dismiss alerts after 5 seconds
             setTimeout(function() {
                 $('.alert').alert('close');
             }, 5000);

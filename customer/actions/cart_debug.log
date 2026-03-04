@@ -178,3 +178,48 @@ Product: Nutmeg - සාදික්කා (Sadikka), Base Price: 750, Multiplie
 Unit Price: 750, Total Price: 750
 New cart item added successfully
 SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-04 14:07:59
+User ID: 5, Role: customer
+POST Data - Product ID: 24, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Celery Seeds - සැල්දිරි ඇට (Saldeeri Aeta), Base Price: 420, Multiplier: 1
+Unit Price: 420, Total Price: 420
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-04 14:08:04
+User ID: 5, Role: customer
+POST Data - Product ID: 29, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Tamarind - සියඹලා (Siyambala), Base Price: 350, Multiplier: 1
+Unit Price: 350, Total Price: 350
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-04 14:08:13
+User ID: 5, Role: customer
+POST Data - Product ID: 25, Quantity: 1, Package: 50g
+Database connected successfully
+Product: Ceylon Chili / Bird's Eye Chili - කොච්චි (Kochchi), Base Price: 450, Multiplier: 0.05
+Unit Price: 22.5, Total Price: 22.5
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 50g
+=== Add to Cart Debug ===
+Time: 2026-03-04 14:08:31
+User ID: 5, Role: customer
+POST Data - Product ID: 16, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Curry Leaves - කරපිංචා (Karapincha), Base Price: 180, Multiplier: 1
+Unit Price: 180, Total Price: 180
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-04 14:08:35
+User ID: 5, Role: customer
+POST Data - Product ID: 19, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Garlic - සුදු ලූනු (Sudu Lunu), Base Price: 320, Multiplier: 1
+Unit Price: 320, Total Price: 320
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg

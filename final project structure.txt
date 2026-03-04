@@ -41,6 +41,8 @@ spiceceylon/
 │   └── db.php                   # Database configuration
 │   └──auth_check.php
 │   └──functions.php
+│   └──settings.php
+
 │
 ├── customer/                    # Customer user area
 │   ├── home.php                 # Customer dashboard/home

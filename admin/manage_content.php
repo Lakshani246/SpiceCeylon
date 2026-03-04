@@ -7,6 +7,8 @@ if (!isset($_SESSION['admin_id']) || $_SESSION['role'] != 'super_admin') {
 }
 
 include '../config/db.php';
+include '../config/settings.php';
+
 $admin_id = $_SESSION['admin_id'];
 
 // Get admin data
@@ -17,7 +19,7 @@ $admin = $admin_query->get_result()->fetch_assoc();
 
 // Create tables if they don't exist
 $tables = [
-    'page_content' => "CREATE TABLE page_content (
+    'page_content' => "CREATE TABLE IF NOT EXISTS page_content (
         content_id INT PRIMARY KEY AUTO_INCREMENT,
         page_name VARCHAR(50) NOT NULL,
         section VARCHAR(100) NOT NULL,
@@ -29,7 +31,7 @@ $tables = [
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )",
     
-    'team_members' => "CREATE TABLE team_members (
+    'team_members' => "CREATE TABLE IF NOT EXISTS team_members (
         member_id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(100) NOT NULL,
         role VARCHAR(100),
@@ -40,7 +42,7 @@ $tables = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     
-    'faq_items' => "CREATE TABLE faq_items (
+    'faq_items' => "CREATE TABLE IF NOT EXISTS faq_items (
         faq_id INT PRIMARY KEY AUTO_INCREMENT,
         question VARCHAR(255) NOT NULL,
         answer TEXT NOT NULL,
@@ -50,7 +52,7 @@ $tables = [
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )",
     
-    'contact_info' => "CREATE TABLE contact_info (
+    'contact_info' => "CREATE TABLE IF NOT EXISTS contact_info (
         contact_id INT PRIMARY KEY AUTO_INCREMENT,
         type VARCHAR(50) NOT NULL,
         title VARCHAR(100),
@@ -66,6 +68,199 @@ foreach($tables as $table_name => $create_query) {
     $check = $conn->query("SHOW TABLES LIKE '$table_name'");
     if ($check->num_rows == 0) {
         $conn->query($create_query);
+    }
+}
+
+// Handle AJAX requests
+if (isset($_POST['ajax_action'])) {
+    header('Content-Type: application/json');
+    
+    // Save homepage
+    if ($_POST['ajax_action'] == 'save_homepage') {
+        $success = true;
+        
+        // Save hero section
+        $hero_title = $_POST['hero_title'] ?? 'Welcome to SpiceCeylon';
+        $hero_subtitle = $_POST['hero_subtitle'] ?? 'Discover authentic Sri Lankan spices';
+        $hero_button = $_POST['hero_button'] ?? 'Shop Now';
+        $hero_link = $_POST['hero_link'] ?? '#products';
+        
+        $stmt = $conn->prepare("INSERT INTO page_content (page_name, section, title, content) VALUES (?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE title = VALUES(title), content = VALUES(content), updated_at = NOW()");
+        
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        
+        $page = 'home'; $section = 'hero_title'; $title = 'Hero Title'; $content = $hero_title;
+        $success = $success && $stmt->execute();
+        
+        $page = 'home'; $section = 'hero_subtitle'; $title = 'Hero Subtitle'; $content = $hero_subtitle;
+        $success = $success && $stmt->execute();
+        
+        $page = 'home'; $section = 'hero_button'; $title = 'Hero Button'; $content = $hero_button;
+        $success = $success && $stmt->execute();
+        
+        $page = 'home'; $section = 'hero_link'; $title = 'Hero Link'; $content = $hero_link;
+        $success = $success && $stmt->execute();
+        
+        // Save features
+        $conn->query("DELETE FROM page_content WHERE page_name = 'home' AND section LIKE 'feature_%'");
+        
+        for($i = 1; $i <= 4; $i++) {
+            $feature_title = $_POST['feature_title_' . $i] ?? '';
+            $feature_content = $_POST['feature_content_' . $i] ?? '';
+            
+            if (!empty($feature_title)) {
+                $stmt = $conn->prepare("INSERT INTO page_content (page_name, section, title, content, display_order) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssi", $page, $section, $title, $content, $order);
+                $page = 'home'; $section = 'feature_' . $i; $title = $feature_title; $content = $feature_content; $order = $i;
+                $success = $success && $stmt->execute();
+            }
+        }
+        
+        echo json_encode(['success' => $success, 'message' => $success ? 'Homepage saved successfully!' : 'Error saving homepage']);
+        exit;
+    }
+    
+    // Save about page
+    if ($_POST['ajax_action'] == 'save_about') {
+        $success = true;
+        
+        // Save hero
+        $stmt = $conn->prepare("INSERT INTO page_content (page_name, section, title, content) VALUES (?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE title = VALUES(title), content = VALUES(content), updated_at = NOW()");
+        
+        $page = 'about'; $section = 'hero'; $title = $_POST['about_hero_title'] ?? 'About SpiceCeylon'; 
+        $content = $_POST['about_hero_content'] ?? '';
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        // Save story
+        $section = 'story'; $title = $_POST['about_story_title'] ?? 'Our Story';
+        $content = $_POST['about_story_content'] ?? '';
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        // Save mission
+        $section = 'mission'; $title = $_POST['about_mission_title'] ?? 'Our Mission';
+        $content = $_POST['about_mission_content'] ?? '';
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        // Save values as JSON
+        $values = [];
+        for($i = 1; $i <= 4; $i++) {
+            $values[] = [
+                'icon' => $_POST['value_icon_' . $i] ?? 'fa-leaf',
+                'title' => $_POST['value_title_' . $i] ?? '',
+                'desc' => $_POST['value_desc_' . $i] ?? ''
+            ];
+        }
+        $section = 'values'; $title = 'Our Values'; $content = json_encode($values);
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        // Save timeline as JSON
+        $timeline = [];
+        for($i = 1; $i <= 4; $i++) {
+            if (!empty($_POST['timeline_year_' . $i])) {
+                $timeline[] = [
+                    'year' => $_POST['timeline_year_' . $i],
+                    'title' => $_POST['timeline_title_' . $i],
+                    'desc' => $_POST['timeline_desc_' . $i]
+                ];
+            }
+        }
+        $section = 'timeline'; $title = 'Our Journey'; $content = json_encode($timeline);
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        // Save stats as JSON
+        $stats = [];
+        for($i = 1; $i <= 4; $i++) {
+            if (!empty($_POST['stat_number_' . $i])) {
+                $stats[] = [
+                    'number' => $_POST['stat_number_' . $i],
+                    'label' => $_POST['stat_label_' . $i]
+                ];
+            }
+        }
+        $section = 'stats'; $title = 'Our Stats'; $content = json_encode($stats);
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        echo json_encode(['success' => $success, 'message' => $success ? 'About page saved successfully!' : 'Error saving about page']);
+        exit;
+    }
+    
+    // Save FAQ
+    if ($_POST['ajax_action'] == 'save_faq') {
+        $conn->query("DELETE FROM faq_items");
+        $success = true;
+        
+        $count = intval($_POST['faq_count'] ?? 0);
+        
+        for($i = 1; $i <= $count; $i++) {
+            $question = $_POST['faq_question_' . $i] ?? '';
+            $answer = $_POST['faq_answer_' . $i] ?? '';
+            $category = $_POST['faq_category_' . $i] ?? 'General';
+            
+            if (!empty($question) && !empty($answer)) {
+                $stmt = $conn->prepare("INSERT INTO faq_items (question, answer, category, display_order) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param("sssi", $question, $answer, $category, $i);
+                $success = $success && $stmt->execute();
+            }
+        }
+        
+        echo json_encode(['success' => $success, 'message' => $success ? 'FAQ saved successfully!' : 'Error saving FAQ']);
+        exit;
+    }
+    
+    // Save contact
+    if ($_POST['ajax_action'] == 'save_contact') {
+        $conn->query("DELETE FROM contact_info");
+        $success = true;
+        
+        $contact_items = [
+            ['type' => 'address', 'title' => 'Address', 'value' => $_POST['contact_address'] ?? '', 'icon' => 'fas fa-map-marker-alt', 'order' => 1],
+            ['type' => 'phone', 'title' => 'Phone', 'value' => $_POST['contact_phone'] ?? '', 'icon' => 'fas fa-phone', 'order' => 2],
+            ['type' => 'email', 'title' => 'Email', 'value' => $_POST['contact_email'] ?? '', 'icon' => 'fas fa-envelope', 'order' => 3],
+            ['type' => 'hours', 'title' => 'Business Hours', 'value' => $_POST['contact_hours'] ?? '', 'icon' => 'fas fa-clock', 'order' => 4]
+        ];
+        
+        // Add social media if provided
+        if (!empty($_POST['contact_facebook'])) {
+            $contact_items[] = ['type' => 'social', 'title' => 'Facebook', 'value' => $_POST['contact_facebook'], 'icon' => 'fab fa-facebook', 'order' => 5];
+        }
+        if (!empty($_POST['contact_instagram'])) {
+            $contact_items[] = ['type' => 'social', 'title' => 'Instagram', 'value' => $_POST['contact_instagram'], 'icon' => 'fab fa-instagram', 'order' => 6];
+        }
+        if (!empty($_POST['contact_twitter'])) {
+            $contact_items[] = ['type' => 'social', 'title' => 'Twitter', 'value' => $_POST['contact_twitter'], 'icon' => 'fab fa-twitter', 'order' => 7];
+        }
+        if (!empty($_POST['contact_youtube'])) {
+            $contact_items[] = ['type' => 'social', 'title' => 'YouTube', 'value' => $_POST['contact_youtube'], 'icon' => 'fab fa-youtube', 'order' => 8];
+        }
+        
+        foreach($contact_items as $item) {
+            $stmt = $conn->prepare("INSERT INTO contact_info (type, title, value, icon, display_order) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssi", $item['type'], $item['title'], $item['value'], $item['icon'], $item['order']);
+            $success = $success && $stmt->execute();
+        }
+        
+        // Save contact form titles
+        $stmt = $conn->prepare("INSERT INTO page_content (page_name, section, title, content) VALUES (?, ?, ?, ?) 
+            ON DUPLICATE KEY UPDATE content = VALUES(content), updated_at = NOW()");
+        
+        $page = 'contact'; $section = 'form_title'; $title = 'Contact Form Title'; $content = $_POST['contact_form_title'] ?? 'Get In Touch';
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        $section = 'form_subtitle'; $title = 'Contact Form Subtitle'; $content = $_POST['contact_form_subtitle'] ?? 'Have questions? Send us a message.';
+        $stmt->bind_param("ssss", $page, $section, $title, $content);
+        $success = $success && $stmt->execute();
+        
+        echo json_encode(['success' => $success, 'message' => $success ? 'Contact page saved successfully!' : 'Error saving contact page']);
+        exit;
     }
 }
 
@@ -92,48 +287,6 @@ function get_content($conn, $page_name, $section = null) {
     }
 }
 
-// Function to save content (FIXED - removed extra_data parameter)
-function save_content($conn, $page_name, $section, $title, $content, $image = '') {
-    $existing = get_content($conn, $page_name, $section);
-    
-    if ($existing) {
-        $query = $conn->prepare("UPDATE page_content SET title = ?, content = ?, image = ?, updated_at = NOW() WHERE page_name = ? AND section = ?");
-        $query->bind_param("sssss", $title, $content, $image, $page_name, $section);
-    } else {
-        $query = $conn->prepare("INSERT INTO page_content (page_name, section, title, content, image) VALUES (?, ?, ?, ?, ?)");
-        $query->bind_param("sssss", $page_name, $section, $title, $content, $image);
-    }
-    
-    return $query->execute();
-}
-
-// Function to save multiple content items
-function save_content_items($conn, $page_name, $items) {
-    // Delete existing items
-    $conn->query("DELETE FROM page_content WHERE page_name = '$page_name'");
-    
-    foreach($items as $item) {
-        $query = $conn->prepare("INSERT INTO page_content (page_name, section, title, content, image, display_order) VALUES (?, ?, ?, ?, ?, ?)");
-        $query->bind_param("sssssi", $page_name, $item['section'], $item['title'], $item['content'], $item['image'], $item['order']);
-        $query->execute();
-    }
-    return true;
-}
-
-// Function to save FAQ items
-function save_faq_items($conn, $faq_items) {
-    // Delete all FAQ items
-    $conn->query("DELETE FROM faq_items");
-    
-    foreach($faq_items as $index => $item) {
-        $query = $conn->prepare("INSERT INTO faq_items (question, answer, category, display_order) VALUES (?, ?, ?, ?)");
-        $order = $index + 1;
-        $query->bind_param("sssi", $item['question'], $item['answer'], $item['category'], $order);
-        $query->execute();
-    }
-    return true;
-}
-
 // Function to get FAQ items
 function get_faq_items($conn) {
     $result = $conn->query("SELECT * FROM faq_items WHERE status = 'active' ORDER BY display_order");
@@ -144,19 +297,6 @@ function get_faq_items($conn) {
     return $items;
 }
 
-// Function to save contact info
-function save_contact_info($conn, $contact_items) {
-    // Delete all contact info
-    $conn->query("DELETE FROM contact_info");
-    
-    foreach($contact_items as $item) {
-        $query = $conn->prepare("INSERT INTO contact_info (type, title, value, icon, display_order) VALUES (?, ?, ?, ?, ?)");
-        $query->bind_param("ssssi", $item['type'], $item['title'], $item['value'], $item['icon'], $item['order']);
-        $query->execute();
-    }
-    return true;
-}
-
 // Function to get contact info
 function get_contact_info($conn) {
     $result = $conn->query("SELECT * FROM contact_info WHERE status = 'active' ORDER BY display_order");
@@ -165,208 +305,6 @@ function get_contact_info($conn) {
         $items[] = $row;
     }
     return $items;
-}
-
-// Handle form submissions
-$message = '';
-$message_type = '';
-
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Homepage
-    if (isset($_POST['save_homepage'])) {
-        $hero_title = $_POST['hero_title'];
-        $hero_subtitle = $_POST['hero_subtitle'];
-        $hero_button = $_POST['hero_button'];
-        $hero_link = $_POST['hero_link'];
-        
-        save_content($conn, 'home', 'hero_title', 'Hero Title', $hero_title);
-        save_content($conn, 'home', 'hero_subtitle', 'Hero Subtitle', $hero_subtitle);
-        save_content($conn, 'home', 'hero_button', 'Hero Button', $hero_button);
-        save_content($conn, 'home', 'hero_link', 'Hero Link', $hero_link);
-        
-        // Save features
-        $features = [];
-        for($i = 1; $i <= 4; $i++) {
-            if (!empty($_POST['feature_title_' . $i])) {
-                $features[] = [
-                    'section' => 'feature_' . $i,
-                    'title' => $_POST['feature_title_' . $i],
-                    'content' => $_POST['feature_content_' . $i],
-                    'image' => '',
-                    'order' => $i
-                ];
-            }
-        }
-        save_content_items($conn, 'home', $features);
-        
-        $message = "Homepage content saved!";
-        $message_type = "success";
-    }
-    
-    // About Us
-    if (isset($_POST['save_about'])) {
-        // Save hero section
-        save_content($conn, 'about', 'hero', $_POST['about_hero_title'], $_POST['about_hero_content']);
-        
-        // Save story section
-        save_content($conn, 'about', 'story', $_POST['about_story_title'], $_POST['about_story_content']);
-        
-        // Save mission section
-        save_content($conn, 'about', 'mission', $_POST['about_mission_title'], $_POST['about_mission_content']);
-        
-        // Save values
-        $values = [];
-        for($i = 1; $i <= 4; $i++) {
-            $values[] = [
-                'icon' => $_POST['value_icon_' . $i],
-                'title' => $_POST['value_title_' . $i],
-                'desc' => $_POST['value_desc_' . $i]
-            ];
-        }
-        save_content($conn, 'about', 'values', 'Our Values', json_encode($values));
-        
-        // Save timeline
-        $timeline = [];
-        for($i = 1; $i <= 4; $i++) {
-            if (!empty($_POST['timeline_year_' . $i])) {
-                $timeline[] = [
-                    'year' => $_POST['timeline_year_' . $i],
-                    'title' => $_POST['timeline_title_' . $i],
-                    'desc' => $_POST['timeline_desc_' . $i]
-                ];
-            }
-        }
-        save_content($conn, 'about', 'timeline', 'Our Journey', json_encode($timeline));
-        
-        // Save stats
-        $stats = [];
-        for($i = 1; $i <= 4; $i++) {
-            if (!empty($_POST['stat_number_' . $i])) {
-                $stats[] = [
-                    'number' => $_POST['stat_number_' . $i],
-                    'label' => $_POST['stat_label_' . $i]
-                ];
-            }
-        }
-        save_content($conn, 'about', 'stats', 'Our Stats', json_encode($stats));
-        
-        $message = "About page content saved!";
-        $message_type = "success";
-    }
-    
-    // FAQ
-    if (isset($_POST['save_faq'])) {
-        $faq_items = [];
-        $count = $_POST['faq_count'] ?? 0;
-        
-        for($i = 1; $i <= $count; $i++) {
-            if (!empty($_POST['faq_question_' . $i])) {
-                $faq_items[] = [
-                    'question' => $_POST['faq_question_' . $i],
-                    'answer' => $_POST['faq_answer_' . $i],
-                    'category' => $_POST['faq_category_' . $i]
-                ];
-            }
-        }
-        
-        if (save_faq_items($conn, $faq_items)) {
-            $message = "FAQ content saved!";
-            $message_type = "success";
-        }
-    }
-    
-    // Contact
-    if (isset($_POST['save_contact'])) {
-        $contact_items = [];
-        
-        // Contact information
-        $contact_items[] = [
-            'type' => 'address',
-            'title' => 'Address',
-            'value' => $_POST['contact_address'],
-            'icon' => 'fas fa-map-marker-alt',
-            'order' => 1
-        ];
-        
-        $contact_items[] = [
-            'type' => 'phone',
-            'title' => 'Phone',
-            'value' => $_POST['contact_phone'],
-            'icon' => 'fas fa-phone',
-            'order' => 2
-        ];
-        
-        $contact_items[] = [
-            'type' => 'email',
-            'title' => 'Email',
-            'value' => $_POST['contact_email'],
-            'icon' => 'fas fa-envelope',
-            'order' => 3
-        ];
-        
-        $contact_items[] = [
-            'type' => 'hours',
-            'title' => 'Business Hours',
-            'value' => $_POST['contact_hours'],
-            'icon' => 'fas fa-clock',
-            'order' => 4
-        ];
-        
-        // Social media
-        if (!empty($_POST['contact_facebook'])) {
-            $contact_items[] = [
-                'type' => 'social',
-                'title' => 'Facebook',
-                'value' => $_POST['contact_facebook'],
-                'icon' => 'fab fa-facebook',
-                'order' => 5
-            ];
-        }
-        
-        if (!empty($_POST['contact_instagram'])) {
-            $contact_items[] = [
-                'type' => 'social',
-                'title' => 'Instagram',
-                'value' => $_POST['contact_instagram'],
-                'icon' => 'fab fa-instagram',
-                'order' => 6
-            ];
-        }
-        
-        if (!empty($_POST['contact_twitter'])) {
-            $contact_items[] = [
-                'type' => 'social',
-                'title' => 'Twitter',
-                'value' => $_POST['contact_twitter'],
-                'icon' => 'fab fa-twitter',
-                'order' => 7
-            ];
-        }
-        
-        if (!empty($_POST['contact_youtube'])) {
-            $contact_items[] = [
-                'type' => 'social',
-                'title' => 'YouTube',
-                'value' => $_POST['contact_youtube'],
-                'icon' => 'fab fa-youtube',
-                'order' => 8
-            ];
-        }
-        
-        if (save_contact_info($conn, $contact_items)) {
-            // Save contact form content
-            save_content($conn, 'contact', 'form_title', 'Contact Form Title', $_POST['contact_form_title']);
-            save_content($conn, 'contact', 'form_subtitle', 'Contact Form Subtitle', $_POST['contact_form_subtitle']);
-            
-            $message = "Contact page content saved!";
-            $message_type = "success";
-        }
-    }
-    
-    $_SESSION['message'] = $message;
-    $_SESSION['message_type'] = $message_type;
-    header("Location: content_editor.php");
-    exit;
 }
 
 // Get current content
@@ -417,12 +355,6 @@ foreach($contact_info as $item) {
             break;
     }
 }
-
-// Check for messages from session
-$message = $_SESSION['message'] ?? '';
-$message_type = $_SESSION['message_type'] ?? '';
-unset($_SESSION['message']);
-unset($_SESSION['message_type']);
 ?>
 
 <!DOCTYPE html>
@@ -609,6 +541,101 @@ unset($_SESSION['message_type']);
             background: #219653;
             color: white;
         }
+        
+        /* Popup Modal Styles */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 9998;
+            display: none;
+        }
+        
+        .popup-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            padding: 30px 40px;
+            text-align: center;
+            z-index: 9999;
+            display: none;
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .popup-modal.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .popup-overlay.show {
+            display: block;
+        }
+        
+        .popup-modal.success { border-top: 5px solid var(--spice-green); }
+        .popup-modal.error { border-top: 5px solid var(--spice-red); }
+        
+        .popup-modal i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        
+        .popup-modal.success i { color: var(--spice-green); }
+        .popup-modal.error i { color: var(--spice-red); }
+        
+        .popup-modal h5 {
+            font-size: 1.2rem;
+            margin-bottom: 5px;
+            color: var(--spice-dark);
+        }
+        
+        .popup-modal p {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        
+        .popup-modal .btn {
+            padding: 8px 30px;
+            border-radius: 20px;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+        
+        .auto-sync-badge {
+            background: var(--spice-blue);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+        }
+        
+        .auto-sync-badge i {
+            margin-right: 5px;
+            animation: spin 2s linear infinite;
+        }
+        
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -632,17 +659,11 @@ unset($_SESSION['message_type']);
                                 Edit website content - Changes automatically update the customer website
                             </p>
                         </div>
+                        <div class="auto-sync-badge">
+                            <i class="fas fa-sync-alt"></i> Auto-Sync Enabled
+                        </div>
                     </div>
                 </div>
-
-                <!-- Messages -->
-                <?php if($message): ?>
-                <div class="alert alert-<?php echo $message_type; ?> alert-dismissible fade show mb-4" role="alert">
-                    <i class="fas fa-<?php echo $message_type == 'success' ? 'check-circle' : 'info-circle'; ?> me-2"></i> 
-                    <?php echo htmlspecialchars($message); ?>
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                <?php endif; ?>
 
                 <!-- Page Content Tabs -->
                 <div class="analytics-card">
@@ -654,7 +675,7 @@ unset($_SESSION['message_type']);
                             <h4 class="mb-1">Page Content Management</h4>
                             <p class="text-muted mb-0">Edit content for different pages on the website</p>
                             <small class="text-info">
-                                <i class="fas fa-sync me-1"></i> Changes automatically update the customer website
+                                <i class="fas fa-sync me-1"></i> Changes automatically update the customer website in real-time
                             </small>
                         </div>
                     </div>
@@ -685,7 +706,7 @@ unset($_SESSION['message_type']);
                     <div class="tab-content" id="pageTabsContent">
                         <!-- Homepage Tab -->
                         <div class="tab-pane fade show active" id="home">
-                            <form method="POST">
+                            <form id="homeForm">
                                 <h5 class="mb-4" style="color: var(--spice-red);">
                                     <i class="fas fa-star me-2"></i>Hero Section
                                 </h5>
@@ -760,7 +781,7 @@ unset($_SESSION['message_type']);
                                 </div>
                                 
                                 <div class="text-end mt-4">
-                                    <button type="submit" name="save_homepage" class="btn btn-primary px-4">
+                                    <button type="button" class="btn btn-primary px-4" onclick="saveHomepage()">
                                         <i class="fas fa-save me-1"></i> Save Homepage
                                     </button>
                                 </div>
@@ -769,7 +790,7 @@ unset($_SESSION['message_type']);
                         
                         <!-- About Us Tab -->
                         <div class="tab-pane fade" id="about">
-                            <form method="POST">
+                            <form id="aboutForm">
                                 <!-- Hero Section -->
                                 <div class="mb-5">
                                     <h5 class="mb-3" style="color: var(--spice-red);">
@@ -978,7 +999,7 @@ unset($_SESSION['message_type']);
                                 </div>
                                 
                                 <div class="text-end mt-4">
-                                    <button type="submit" name="save_about" class="btn btn-primary px-4">
+                                    <button type="button" class="btn btn-primary px-4" onclick="saveAbout()">
                                         <i class="fas fa-save me-1"></i> Save About Page
                                     </button>
                                 </div>
@@ -987,7 +1008,7 @@ unset($_SESSION['message_type']);
                         
                         <!-- FAQ Tab -->
                         <div class="tab-pane fade" id="faq">
-                            <form method="POST">
+                            <form id="faqForm">
                                 <h5 class="mb-4" style="color: var(--spice-red);">
                                     <i class="fas fa-question-circle me-2"></i>Frequently Asked Questions
                                 </h5>
@@ -1007,27 +1028,35 @@ unset($_SESSION['message_type']);
                                     
                                     for($i = 0; $i < $faq_count; $i++): 
                                         $item = $faq_items[$i];
+                                        $num = $i + 1;
                                     ?>
-                                    <div class="faq-item" id="faq-<?php echo $i+1; ?>">
-                                        <h6>FAQ Item <?php echo $i+1; ?></h6>
+                                    <div class="faq-item" id="faq-<?php echo $num; ?>">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6>FAQ Item <?php echo $num; ?></h6>
+                                            <?php if($num > 4): ?>
+                                            <button type="button" class="btn btn-sm btn-danger" onclick="removeFaqItem(<?php echo $num; ?>)">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            <?php endif; ?>
+                                        </div>
                                         <div class="row">
                                             <div class="col-md-12">
                                                 <div class="mb-3">
                                                     <label class="form-label small">Question</label>
-                                                    <input type="text" class="form-control" name="faq_question_<?php echo $i+1; ?>" 
+                                                    <input type="text" class="form-control" name="faq_question_<?php echo $num; ?>" 
                                                            value="<?php echo htmlspecialchars($item['question']); ?>" required>
                                                 </div>
                                             </div>
                                             <div class="col-md-12">
                                                 <div class="mb-3">
                                                     <label class="form-label small">Answer</label>
-                                                    <textarea class="form-control" name="faq_answer_<?php echo $i+1; ?>" rows="3" required><?php echo htmlspecialchars($item['answer']); ?></textarea>
+                                                    <textarea class="form-control" name="faq_answer_<?php echo $num; ?>" rows="3" required><?php echo htmlspecialchars($item['answer']); ?></textarea>
                                                 </div>
                                             </div>
                                             <div class="col-md-12">
                                                 <div class="mb-3">
                                                     <label class="form-label small">Category</label>
-                                                    <select class="form-control" name="faq_category_<?php echo $i+1; ?>">
+                                                    <select class="form-control" name="faq_category_<?php echo $num; ?>">
                                                         <option value="General" <?php echo $item['category'] == 'General' ? 'selected' : ''; ?>>General</option>
                                                         <option value="Quality" <?php echo $item['category'] == 'Quality' ? 'selected' : ''; ?>>Quality</option>
                                                         <option value="Shipping" <?php echo $item['category'] == 'Shipping' ? 'selected' : ''; ?>>Shipping</option>
@@ -1047,7 +1076,7 @@ unset($_SESSION['message_type']);
                                     <button type="button" class="btn btn-success" onclick="addFaqItem()">
                                         <i class="fas fa-plus me-1"></i> Add FAQ Item
                                     </button>
-                                    <button type="submit" name="save_faq" class="btn btn-primary px-4">
+                                    <button type="button" class="btn btn-primary px-4" onclick="saveFaq()">
                                         <i class="fas fa-save me-1"></i> Save FAQ
                                     </button>
                                 </div>
@@ -1056,7 +1085,7 @@ unset($_SESSION['message_type']);
                         
                         <!-- Contact Tab -->
                         <div class="tab-pane fade" id="contact">
-                            <form method="POST">
+                            <form id="contactForm">
                                 <h5 class="mb-4" style="color: var(--spice-red);">
                                     <i class="fas fa-address-book me-2"></i>Contact Information
                                 </h5>
@@ -1170,7 +1199,7 @@ unset($_SESSION['message_type']);
                                 </div>
                                 
                                 <div class="text-end mt-4">
-                                    <button type="submit" name="save_contact" class="btn btn-primary px-4">
+                                    <button type="button" class="btn btn-primary px-4" onclick="saveContact()">
                                         <i class="fas fa-save me-1"></i> Save Contact Page
                                     </button>
                                 </div>
@@ -1180,6 +1209,15 @@ unset($_SESSION['message_type']);
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Success/Error Popup -->
+    <div class="popup-overlay" id="popupOverlay"></div>
+    <div class="popup-modal" id="popupModal">
+        <i class="fas fa-check-circle" id="popupIcon"></i>
+        <h5 id="popupTitle">Success!</h5>
+        <p id="popupMessage">Content saved successfully.</p>
+        <button class="btn btn-success" onclick="closePopup()">OK</button>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -1196,7 +1234,13 @@ unset($_SESSION['message_type']);
                     ['para', ['ul', 'ol', 'paragraph']],
                     ['insert', ['link']],
                     ['view', ['fullscreen', 'codeview']]
-                ]
+                ],
+                callbacks: {
+                    onChange: function(contents) {
+                        // Update the textarea value for AJAX submission
+                        $('#summernote-story').val(contents);
+                    }
+                }
             });
             
             // Icon picker functionality
@@ -1218,6 +1262,106 @@ unset($_SESSION['message_type']);
                 }
             });
         });
+        
+        // Show popup message
+        function showPopup(type, message) {
+            const popup = document.getElementById('popupModal');
+            const overlay = document.getElementById('popupOverlay');
+            const icon = document.getElementById('popupIcon');
+            const title = document.getElementById('popupTitle');
+            const msg = document.getElementById('popupMessage');
+            
+            popup.className = 'popup-modal ' + type;
+            icon.className = type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+            title.textContent = type === 'success' ? 'Success!' : 'Error!';
+            msg.textContent = message;
+            
+            popup.classList.add('show');
+            overlay.classList.add('show');
+            
+            setTimeout(closePopup, 3000);
+        }
+        
+        function closePopup() {
+            document.getElementById('popupModal').classList.remove('show');
+            document.getElementById('popupOverlay').classList.remove('show');
+        }
+        
+        // Save homepage
+        function saveHomepage() {
+            const formData = new FormData(document.getElementById('homeForm'));
+            formData.append('ajax_action', 'save_homepage');
+            
+            fetch('', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showPopup(data.success ? 'success' : 'error', data.message);
+            })
+            .catch(error => {
+                showPopup('error', 'Error saving homepage');
+            });
+        }
+        
+        // Save about page
+        function saveAbout() {
+            // Get summernote content
+            const storyContent = $('#summernote-story').summernote('code');
+            
+            const formData = new FormData(document.getElementById('aboutForm'));
+            formData.set('about_story_content', storyContent);
+            formData.append('ajax_action', 'save_about');
+            
+            fetch('', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showPopup(data.success ? 'success' : 'error', data.message);
+            })
+            .catch(error => {
+                showPopup('error', 'Error saving about page');
+            });
+        }
+        
+        // Save FAQ
+        function saveFaq() {
+            const formData = new FormData(document.getElementById('faqForm'));
+            formData.append('ajax_action', 'save_faq');
+            
+            fetch('', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showPopup(data.success ? 'success' : 'error', data.message);
+            })
+            .catch(error => {
+                showPopup('error', 'Error saving FAQ');
+            });
+        }
+        
+        // Save contact
+        function saveContact() {
+            const formData = new FormData(document.getElementById('contactForm'));
+            formData.append('ajax_action', 'save_contact');
+            
+            fetch('', {
+                method: 'POST',
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                showPopup(data.success ? 'success' : 'error', data.message);
+            })
+            .catch(error => {
+                showPopup('error', 'Error saving contact page');
+            });
+        }
         
         function addFaqItem() {
             const faqItems = $('#faq-items');
@@ -1266,25 +1410,31 @@ unset($_SESSION['message_type']);
         }
         
         function removeFaqItem(id) {
-            $(`#faq-${id}`).remove();
-            
-            // Update count and renumber remaining items
-            let count = 0;
-            $('.faq-item').each(function(index) {
-                count++;
-                $(this).find('h6').text(`FAQ Item ${count}`);
+            if (confirm('Delete this FAQ item?')) {
+                $(`#faq-${id}`).remove();
                 
-                // Update input names
-                $(this).find('input, textarea, select').each(function() {
-                    let name = $(this).attr('name');
-                    if (name) {
-                        name = name.replace(/faq_(question|answer|category)_\d+/, `faq_$1_${count}`);
-                        $(this).attr('name', name);
-                    }
+                // Update count and renumber remaining items
+                let count = 0;
+                $('.faq-item').each(function(index) {
+                    count++;
+                    $(this).find('h6').text(`FAQ Item ${count}`);
+                    
+                    // Update input names
+                    $(this).find('input, textarea, select').each(function() {
+                        let name = $(this).attr('name');
+                        if (name) {
+                            name = name.replace(/faq_(question|answer|category)_\d+/, `faq_$1_${count}`);
+                            $(this).attr('name', name);
+                        }
+                    });
+                    
+                    // Update IDs and onclick
+                    $(this).attr('id', `faq-${count}`);
+                    $(this).find('.btn-danger').attr('onclick', `removeFaqItem(${count})`);
                 });
-            });
-            
-            $('#faq-count').val(count);
+                
+                $('#faq-count').val(count);
+            }
         }
     </script>
 </body>
