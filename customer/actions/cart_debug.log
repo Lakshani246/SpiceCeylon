@@ -223,3 +223,12 @@ Product: Garlic - සුදු ලූනු (Sudu Lunu), Base Price: 320, Multip
 Unit Price: 320, Total Price: 320
 New cart item added successfully
 SUCCESS: Item added to cart with package size: 1kg
+=== Add to Cart Debug ===
+Time: 2026-03-05 16:24:28
+User ID: 1, Role: customer
+POST Data - Product ID: 1, Quantity: 1, Package: 1kg
+Database connected successfully
+Product: Cinnamon- කුරුඳු (Kurundu), Base Price: 470, Multiplier: 1
+Unit Price: 470, Total Price: 470
+New cart item added successfully
+SUCCESS: Item added to cart with package size: 1kg
