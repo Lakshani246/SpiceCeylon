@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 03, 2026 at 05:17 PM
+-- Generation Time: Mar 07, 2026 at 03:03 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -144,15 +144,6 @@ CREATE TABLE `cart` (
   `total_price` decimal(10,2) DEFAULT NULL,
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `cart`
---
-
-INSERT INTO `cart` (`cart_id`, `customer_id`, `product_id`, `quantity`, `added_at`, `price`, `package_size`, `total_price`, `updated_at`) VALUES
-(34, 1, 10, 1, '2026-03-01 14:44:42', 340.00, '1kg', 340.00, '2026-03-01 14:44:42'),
-(35, 1, 31, 4, '2026-03-03 08:21:57', 58.00, '100g', 232.00, '2026-03-03 08:24:59'),
-(36, 1, 4, 1, '2026-03-03 08:23:49', 750.00, '1kg', 750.00, '2026-03-03 08:23:49');
 
 -- --------------------------------------------------------
 
@@ -346,13 +337,15 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`order_id`, `customer_id`, `total`, `total_amount`, `shipping_fee`, `final_total`, `shipping_name`, `shipping_phone`, `shipping_address`, `shipping_city`, `shipping_postal`, `payment_method`, `payment_status`, `notes`, `admin_notes`, `status`, `is_deleted`, `order_date`, `created_at`, `updated_at`) VALUES
-(2, 1, NULL, 1700.00, 200.00, 1900.00, 'sripali', '0543256712', 'kandy', 'kandy', '21000', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:04:51', '2025-12-05 13:04:51', '2026-02-28 15:19:40'),
-(3, 1, NULL, 750.00, 200.00, 950.00, 'wer', '2345', 'sdfg', 'dfg', '234', 'credit_card', 'pending', '', '', 'Delivered', 0, '2025-12-05 13:06:20', '2025-12-05 13:06:20', '2026-02-24 17:16:44'),
+(2, 1, NULL, 1700.00, 200.00, 1900.00, 'sripali', '0543256712', 'kandy', 'kandy', '21000', 'cash_on_delivery', 'pending', '', '', 'Shipped', 0, '2025-12-05 13:04:51', '2025-12-05 13:04:51', '2026-03-03 18:55:50'),
+(3, 1, NULL, 750.00, 200.00, 950.00, 'wer', '2345', 'sdfg', 'dfg', '234', 'credit_card', 'pending', '', '', 'Pending', 0, '2025-12-05 13:06:20', '2025-12-05 13:06:20', '2026-03-03 18:57:56'),
 (5, 1, NULL, 8500.00, 200.00, 8700.00, 'ishara', '0352234657', 'colombo,srilanka', 'colombo', '1234', 'credit_card', 'pending', '2 packs for travel', '', 'Processing', 0, '2025-12-05 13:33:02', '2025-12-05 13:33:02', '2026-02-24 18:03:57'),
 (6, 1, NULL, 840.00, 200.00, 1040.00, 'ishara', '12345', 'colombo', 'colombo', '21345', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2025-12-05 13:54:53', '2025-12-05 13:54:53', '2026-02-28 15:18:58'),
 (7, 1, NULL, 1600.00, 200.00, 1928.00, 'sripali', '0762541960', 'debathgama,kegalle', 'kegalle', '71000', 'cash_on_delivery', 'pending', 'no.', '', 'Confirmed', 0, '2025-12-24 13:56:54', '2025-12-24 13:56:54', '2026-02-28 14:50:21'),
 (8, 1, NULL, 1870.00, 200.00, 2219.60, 'sripali', '0761234567', 'debathgama,kegalle', 'kandy', '12345', 'cash_on_delivery', 'pending', '', '', 'Delivered', 0, '2026-02-26 16:08:08', '2026-02-26 16:08:08', '2026-03-03 08:45:54'),
-(9, 1, NULL, 2130.00, 200.00, 2500.40, 'sripali', '0761234567', 'debathgama,kegalle', 'maharagama', '10230', 'cash_on_delivery', 'pending', '', '', 'Shipped', 0, '2026-02-28 16:01:46', '2026-02-28 16:01:46', '2026-02-28 16:07:30');
+(9, 1, NULL, 2130.00, 200.00, 2500.40, 'sripali', '0761234567', 'debathgama,kegalle', 'maharagama', '10230', 'cash_on_delivery', 'pending', '', '', 'Confirmed', 0, '2026-02-28 16:01:46', '2026-02-28 16:01:46', '2026-03-03 18:43:08'),
+(10, 5, NULL, 1300.00, 200.00, 1604.00, 'Peter Smith', '0777346982', 'no 07, main street, Colombo', 'Colombo', '1234', 'cash_on_delivery', 'pending', '', NULL, 'Pending', 0, '2026-03-04 13:10:42', '2026-03-04 13:10:42', '2026-03-04 13:10:42'),
+(11, 1, NULL, 470.00, 200.00, 707.60, 'sripali', '0761234567', 'debathgama,kegalle', 'kegalle', '71000', 'cash_on_delivery', 'pending', '', NULL, 'Pending', 0, '2026-03-05 15:25:45', '2026-03-05 15:25:45', '2026-03-05 15:25:45');
 
 -- --------------------------------------------------------
 
@@ -386,7 +379,12 @@ INSERT INTO `order_items` (`order_item_id`, `order_id`, `product_id`, `quantity`
 (11, 9, 31, 1, 580.00, 580.00),
 (12, 9, 3, 1, 890.00, 890.00),
 (13, 9, 21, 1, 280.00, 280.00),
-(14, 9, 7, 1, 380.00, 380.00);
+(14, 9, 7, 1, 380.00, 380.00),
+(15, 10, 29, 1, 350.00, 350.00),
+(16, 10, 25, 1, 450.00, 450.00),
+(17, 10, 16, 1, 180.00, 180.00),
+(18, 10, 19, 1, 320.00, 320.00),
+(19, 11, 1, 1, 470.00, 470.00);
 
 -- --------------------------------------------------------
 
@@ -423,7 +421,16 @@ INSERT INTO `order_status_history` (`history_id`, `order_id`, `status`, `changed
 (13, 2, 'Completed', 1, '', '2026-02-28 15:19:33'),
 (14, 2, 'Confirmed', 1, '', '2026-02-28 15:19:40'),
 (15, 9, 'Shipped', 1, '', '2026-02-28 16:07:30'),
-(16, 8, 'Delivered', 1, '', '2026-03-03 08:45:54');
+(16, 8, 'Delivered', 1, '', '2026-03-03 08:45:54'),
+(17, 2, 'Pending', 1, '', '2026-03-03 17:59:09'),
+(18, 3, 'Processing', 1, '', '2026-03-03 18:28:01'),
+(19, 9, 'Pending', 1, '', '2026-03-03 18:33:54'),
+(20, 9, 'Processing', 1, '', '2026-03-03 18:35:45'),
+(21, 9, 'Shipped', 1, '', '2026-03-03 18:39:19'),
+(22, 3, 'Cancelled', 1, 'Cancelled by admin', '2026-03-03 18:41:55'),
+(23, 9, 'Confirmed', 1, '', '2026-03-03 18:43:08'),
+(24, 2, 'Shipped', 1, '', '2026-03-03 18:55:50'),
+(25, 3, 'Pending', 1, '', '2026-03-03 18:57:56');
 
 -- --------------------------------------------------------
 
@@ -461,7 +468,25 @@ INSERT INTO `page_content` (`content_id`, `page_name`, `section`, `title`, `cont
 (11, 'home', 'feature_4', 'Support', '24/7 customer support', NULL, 0, '2025-12-24 14:50:03', '2025-12-24 14:50:03'),
 (12, 'about', 'story', 'Our Story', '<div>Founded in 2020, SpiceCeylon began with a simple vision: to bring authentic Sri Lankan spices directly from farmers to consumers worldwide.</div><div>Our journey started in the heart of Sri Lanka\'s spice-growing regions, where we witnessed first-hand the challenges faced by local farmers in reaching global markets. We created a platform that eliminates middlemen, ensuring farmers receive fair prices while customers enjoy premium quality spices at reasonable rates.</div><div>Today, we work with over 200 farmers across Sri Lanka, bringing you spices that are not only delicious but also ethically sourced and sustainably grown.</div><div>To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.</p></div><div><br></div>', '../assets/images/about/story-image.jpg', 0, '2025-12-26 07:06:32', '2025-12-26 07:49:18'),
 (13, 'about', 'timeline', 'Our Journey', '[{\"year\":\"2020\",\"title\":\"The Beginning\",\"desc\":\"SpiceCeylon founded with 5 partner farmers in Kandy\"},{\"year\":\"2021\",\"title\":\"Expansion\",\"desc\":\"Expanded to 50 farmers across 3 regions. Launched e-commerce platform\"},{\"year\":\"2022\",\"title\":\"International\",\"desc\":\"Started exporting to 10 countries. Received organic certification\"},{\"year\":\"2023\",\"title\":\"Today\",\"desc\":\"200+ farmers, 50+ spice varieties, serving customers worldwide\"}]', '', 0, '2025-12-26 07:06:32', '2025-12-26 07:08:13'),
-(14, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"50+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', '', 0, '2025-12-26 07:06:32', '2025-12-26 07:08:13');
+(14, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"50+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', '', 0, '2025-12-26 07:06:32', '2025-12-26 07:08:13'),
+(15, 'about', 'hero', 'About SpiceCeylon', 'Connecting farmers with spice lovers worldwide', NULL, 0, '2026-03-04 17:06:05', '2026-03-04 17:06:05'),
+(16, 'about', 'story', 'Our Story', '<div>Founded in 2020, SpiceCeylon began with a simple vision: to bring authentic Sri Lankan spices directly from farmers to consumers worldwide.</div><div>Our journey started in the heart of Sri Lanka\'s spice-growing regions, where we witnessed first-hand the challenges faced by local farmers in reaching global markets. We created a platform that eliminates middlemen, ensuring farmers receive fair prices while customers enjoy premium quality spices at reasonable rates.</div><div>Today, we work with over 200 farmers across Sri Lanka, bringing you spices that are not only delicious but also ethically sourced and sustainably grown.</div><div>To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.<p></p></div><div><br></div>', '../assets/images/about/story-image.jpg', 0, '2026-03-04 17:06:06', '2026-03-04 17:14:20'),
+(17, 'about', 'mission', 'Our Mission', 'To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.', '../assets/images/about/mission-image.jpg', 0, '2026-03-04 17:06:06', '2026-03-04 17:15:17'),
+(18, 'about', 'values', 'Our Values', '[{\"icon\":\"fa-leaf\",\"title\":\"Authenticity\",\"desc\":\"100% pure Sri Lankan spices\"},{\"icon\":\"fa-handshake\",\"title\":\"Fair Trade\",\"desc\":\"Direct from farmers, fair prices\"},{\"icon\":\"fa-seedling\",\"title\":\"Sustainability\",\"desc\":\"Eco-friendly farming practices\"},{\"icon\":\"fa-heart\",\"title\":\"Quality\",\"desc\":\"Rigorous quality checks\"}]', NULL, 0, '2026-03-04 17:06:06', '2026-03-04 17:06:06'),
+(19, 'about', 'timeline', 'Our Journey', '[{\"year\":\"2020\",\"title\":\"The Beginning\",\"desc\":\"SpiceCeylon founded with 5 partner farmers in Kandy\"},{\"year\":\"2021\",\"title\":\"Expansion\",\"desc\":\"Expanded to 50 farmers across 3 regions. Launched e-commerce platform\"},{\"year\":\"2022\",\"title\":\"International\",\"desc\":\"Started exporting to 10 countries. Received organic certification\"},{\"year\":\"2023\",\"title\":\"Today\",\"desc\":\"200+ farmers, 50+ spice varieties, serving customers worldwide\"}]', NULL, 0, '2026-03-04 17:06:06', '2026-03-04 17:06:06'),
+(20, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"40+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', NULL, 0, '2026-03-04 17:06:06', '2026-03-04 17:06:06'),
+(21, 'about', 'hero', 'About SpiceCeylon', 'Connecting farmers with spice lovers worldwide', NULL, 0, '2026-03-04 17:11:04', '2026-03-04 17:11:04'),
+(22, 'about', 'story', 'Our Story', '<div>Founded in 2020, SpiceCeylon began with a simple vision: to bring authentic Sri Lankan spices directly from farmers to consumers worldwide.</div><div>Our journey started in the heart of Sri Lanka\'s spice-growing regions, where we witnessed first-hand the challenges faced by local farmers in reaching global markets. We created a platform that eliminates middlemen, ensuring farmers receive fair prices while customers enjoy premium quality spices at reasonable rates.</div><div>Today, we work with over 200 farmers across Sri Lanka, bringing you spices that are not only delicious but also ethically sourced and sustainably grown.</div><div>To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.<p></p></div><div><br></div>', '../assets/images/about/story-image.jpg', 0, '2026-03-04 17:11:04', '2026-03-04 17:14:42'),
+(23, 'about', 'mission', 'Our Mission', 'To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.', '../assets/images/about/mission-image.jpg', 0, '2026-03-04 17:11:04', '2026-03-04 17:15:28'),
+(24, 'about', 'values', 'Our Values', '[{\"icon\":\"fa-leaf\",\"title\":\"Authenticity\",\"desc\":\"100% pure Sri Lankan spices\"},{\"icon\":\"fa-handshake\",\"title\":\"Fair Trade\",\"desc\":\"Direct from farmers, fair prices\"},{\"icon\":\"fa-seedling\",\"title\":\"Sustainability\",\"desc\":\"Eco-friendly farming practices\"},{\"icon\":\"fa-heart\",\"title\":\"Quality\",\"desc\":\"Rigorous quality checks\"}]', NULL, 0, '2026-03-04 17:11:04', '2026-03-04 17:11:04'),
+(25, 'about', 'timeline', 'Our Journey', '[{\"year\":\"2020\",\"title\":\"The Beginning\",\"desc\":\"SpiceCeylon founded with 5 partner farmers in Kandy\"},{\"year\":\"2021\",\"title\":\"Expansion\",\"desc\":\"Expanded to 50 farmers across 3 regions. Launched e-commerce platform\"},{\"year\":\"2022\",\"title\":\"International\",\"desc\":\"Started exporting to 10 countries. Received organic certification\"},{\"year\":\"2023\",\"title\":\"Today\",\"desc\":\"200+ farmers, 50+ spice varieties, serving customers worldwide\"}]', NULL, 0, '2026-03-04 17:11:04', '2026-03-04 17:11:04'),
+(26, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"50+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', NULL, 0, '2026-03-04 17:11:04', '2026-03-04 17:11:04'),
+(27, 'about', 'hero', 'About SpiceCeylon', 'Connecting farmers with spice lovers worldwide', NULL, 0, '2026-03-04 17:17:39', '2026-03-04 17:17:39'),
+(28, 'about', 'story', 'Our Story', '<div>Founded in 2020, SpiceCeylon began with a simple vision: to bring authentic Sri Lankan spices directly from farmers to consumers worldwide.</div><div>Our journey started in the heart of Sri Lanka\'s spice-growing regions, where we witnessed first-hand the challenges faced by local farmers in reaching global markets. We created a platform that eliminates middlemen, ensuring farmers receive fair prices while customers enjoy premium quality spices at reasonable rates.</div><div>Today, we work with over 200 farmers across Sri Lanka, bringing you spices that are not only delicious but also ethically sourced and sustainably grown.</div><div>To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.<p></p></div><div><br></div>', '../assets/images/about/story-image.jpg', 0, '2026-03-04 17:17:39', '2026-03-04 17:20:32'),
+(29, 'about', 'mission', 'Our Mission', 'To bridge the gap between Sri Lankan farmers and global consumers by providing authentic, high-quality spices while ensuring fair trade practices and sustainable farming.', '../assets/images/about/mission-image.jpg', 0, '2026-03-04 17:17:39', '2026-03-04 17:20:05'),
+(30, 'about', 'values', 'Our Values', '[{\"icon\":\"fa-leaf\",\"title\":\"Authenticity\",\"desc\":\"100% pure Sri Lankan spices\"},{\"icon\":\"fa-handshake\",\"title\":\"Fair Trade\",\"desc\":\"Direct from farmers, fair prices\"},{\"icon\":\"fa-seedling\",\"title\":\"Sustainability\",\"desc\":\"Eco-friendly farming practices\"},{\"icon\":\"fa-heart\",\"title\":\"Quality\",\"desc\":\"Rigorous quality checks\"}]', NULL, 0, '2026-03-04 17:17:39', '2026-03-04 17:17:39'),
+(31, 'about', 'timeline', 'Our Journey', '[{\"year\":\"2020\",\"title\":\"The Beginning\",\"desc\":\"SpiceCeylon founded with 5 partner farmers in Kandy\"},{\"year\":\"2021\",\"title\":\"Expansion\",\"desc\":\"Expanded to 50 farmers across 3 regions. Launched e-commerce platform\"},{\"year\":\"2022\",\"title\":\"International\",\"desc\":\"Started exporting to 10 countries. Received organic certification\"},{\"year\":\"2023\",\"title\":\"Today\",\"desc\":\"200+ farmers, 50+ spice varieties, serving customers worldwide\"}]', NULL, 0, '2026-03-04 17:17:39', '2026-03-04 17:17:39'),
+(32, 'about', 'stats', 'Our Stats', '[{\"number\":\"200+\",\"label\":\"Partner Farmers\"},{\"number\":\"40+\",\"label\":\"Spice Varieties\"},{\"number\":\"10,000+\",\"label\":\"Happy Customers\"},{\"number\":\"25+\",\"label\":\"Countries Served\"}]', NULL, 0, '2026-03-04 17:17:39', '2026-03-04 17:17:39');
 
 -- --------------------------------------------------------
 
@@ -532,7 +557,7 @@ CREATE TABLE `payment_methods` (
 --
 
 INSERT INTO `payment_methods` (`method_id`, `method_name`, `method_type`, `credentials`, `is_enabled`, `sort_order`, `created_at`) VALUES
-(1, 'Credit/Debit Card', 'stripe', NULL, 1, 1, '2025-12-24 07:24:45'),
+(1, 'Credit/Debit Card', 'stripe', '', 0, 1, '2025-12-24 07:24:45'),
 (2, 'PayPal', 'paypal', NULL, 1, 2, '2025-12-24 07:24:45'),
 (3, 'Bank Transfer', 'bank', NULL, 1, 3, '2025-12-24 07:24:45'),
 (4, 'Cash on Delivery', 'cod', NULL, 1, 4, '2025-12-24 07:24:45');
@@ -566,13 +591,13 @@ CREATE TABLE `products` (
 
 INSERT INTO `products` (`product_id`, `farmer_id`, `name`, `description`, `category`, `price`, `stock`, `image`, `status`, `created_at`, `admin_approved`, `approved_by`, `approved_at`, `rejection_reason`) VALUES
 (1, 2, 'Cinnamon- කුරුඳු (Kurundu)', 'Sweet and aromatic Ceylon cinnamon bark, true cinnamon with delicate flavor.', 'Whole Spices', 470.00, 170, 'cinnamon.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2026-03-02 18:53:14', NULL),
-(2, 2, 'Cardamom - එනසාල් (Enasal)\r\n\r\n', 'Aromatic green cardamom pods with intense flavor and medicinal properties.', 'Whole Spices', 1260.00, 124, 'cardamom.jpg', 'Pending', '2025-11-23 11:14:12', 'pending', 1, '2025-12-23 18:36:24', NULL),
+(2, 2, 'Cardamom - එනසාල් (Enasal)\r\n\r\n', 'Aromatic green cardamom pods with intense flavor and medicinal properties.', 'Whole Spices', 1260.00, 124, 'cardamom.jpg', 'Pending', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:24', NULL),
 (3, 2, 'Cloves- කරාබුනැටි (Karabu Nati)\r\n\r\n', 'Aromatic flower buds with warm, sweet flavor, perfect for meat dishes and teas.', 'Whole Spices', 890.00, 120, 'cloves.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-23 18:36:16', NULL),
 (4, 3, 'Nutmeg - සාදික්කා (Sadikka)', 'Warm, nutty spice perfect for both sweet and savory dishes, freshly ground.', 'Whole Spices', 750.00, 95, 'nutmeg.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:59', NULL),
 (5, 3, 'Mace- වසාවාසි (Wasawasi)', 'Delicate spice from nutmeg covering, with subtle flavor for baking and sauces.', 'Whole Spices', 920.00, 80, 'mace.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:02', NULL),
 (6, 3, 'Black Pepper - ගම්මිරිස් (Gammiris)\r\n\r\n', 'Freshly ground black pepper with robust flavor and heat, freshly harvested.', 'Whole Spices', 650.00, 180, 'black_pepper.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:38:21', NULL),
 (7, 3, 'Cumin Seeds - සූදුරු (Suduru)', 'Warm, earthy seeds with distinctive aroma, essential for curry powders.', 'Spices', 380.00, 160, 'cumin_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:05', NULL),
-(8, 3, 'Coriander Seeds - කොත්තමල්ලි (Koththamalli)', 'Mild, citrusy seeds essential for curry powders and spice blends.', 'Spices', 290.00, 170, 'coriander_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'pending', NULL, NULL, NULL),
+(8, 3, 'Coriander Seeds - කොත්තමල්ලි (Koththamalli)', 'Mild, citrusy seeds essential for curry powders and spice blends.', 'Spices', 290.00, 170, 'coriander_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2026-03-04 13:59:28', NULL),
 (9, 3, 'Fennel Seeds - මාදුරු (Maduru)', 'Sweet, licorice-flavored seeds for cooking and digestive health.', 'Whole Spices', 350.00, 140, 'fennel_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:09', NULL),
 (10, 3, 'Fenugreek Seeds - උළුහාල් (Uluhal)', 'Bitter seeds used in curry powders and traditional medicinal preparations.', 'Whole Spices', 340.00, 110, 'fenugreek_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-28 17:27:18', NULL),
 (11, 3, 'Mustard Seeds - අබ (Aba)', 'Tiny seeds that pack a punch of flavor when tempered in oil.', 'Whole Spices', 310.00, 130, 'mustard_seeds.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:52:12', NULL),
@@ -607,7 +632,7 @@ INSERT INTO `products` (`product_id`, `farmer_id`, `name`, `description`, `categ
 (41, 2, 'Roasted Curry Powder - බැදපු කරි කුඩු (Badapu Kari Kudu)', 'Traditional Sri Lankan roasted curry powder with complex flavors.', 'Powders & Pastes', 550.00, 150, 'roasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:35', NULL),
 (42, 2, 'Unroasted Curry Powder - අමු කරි කුඩු (Amu Kari Kudu)', 'Mild, unroasted curry powder for light-colored dishes.', 'Powders & Pastes', 520.00, 140, 'unroasted_curry_powder.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:37', NULL),
 (43, 2, 'Chili Paste - මිරිස් පේස්ට් (Miris Paste)', 'Freshly ground chili paste for instant heat and flavor in cooking.', 'Chilies & Peppers', 420.00, 120, 'chili_paste.jpg', 'Approved', '2025-11-23 11:14:12', 'approved', 1, '2025-12-24 14:51:39', NULL),
-(44, 2, 'Dried Ginger Sweet Candy- වියළි ඉඟුරු රසකැවිල්ල (Viyali Inguru Rasakawilla)', '200gm Dried Ginger Sweet Candy , Flavoured Ginger Slices | Mouth Fresher, Cough Relief, Immunity Booster', 'Specialty Spices', 3450.00, 5, 'Candied-Ginger.jpg', 'Pending', '2026-02-28 14:03:49', 'pending', NULL, NULL, NULL);
+(44, 2, 'Dried Ginger Sweet Candy- වියළි ඉඟුරු රසකැවිල්ල (Viyali Inguru Rasakawilla)', '200gm Dried Ginger Sweet Candy , Flavoured Ginger Slices | Mouth Fresher, Cough Relief, Immunity Booster', 'Specialty Spices', 3450.00, 5, 'Candied-Ginger.jpg', 'Pending', '2026-02-28 14:03:49', 'rejected', 1, '2026-03-04 14:03:19', 'only the spices accepted.products made from using spices won\'t accepted.');
 
 -- --------------------------------------------------------
 
@@ -638,7 +663,8 @@ INSERT INTO `product_requests` (`request_id`, `customer_id`, `product_name`, `ca
 (1, 1, 'pandan leaves', 'Leaves & Herbs', 'need for overseas travelling.', 1, 'High', '', '[Farmer Update: 2026-03-01 19:49:12 - Status changed to: Accepted]', '2025-12-24 10:32:45', '2026-03-01 18:49:12', 2),
 (2, 1, 'vanilla', 'Specialty Spices', 'need dried vanilla 10kg', 10, 'Medium', 'Approved', NULL, '2026-01-22 19:58:25', '2026-03-02 16:44:33', 2),
 (3, 1, 'turmeric', 'Roots & Bulbs', 'need for shop', 5, 'Medium', 'Approved', NULL, '2026-01-22 19:59:52', '2026-01-22 20:15:33', 3),
-(4, 1, 'Cinnoman', 'Whole Spices', 'can i get the Cinnamon powders 2kg?', 2, 'Low', 'Pending', NULL, '2026-02-26 15:41:31', NULL, NULL);
+(4, 1, 'Cinnoman', 'Whole Spices', 'can i get the Cinnamon powders 2kg?', 2, 'Low', 'Approved', NULL, '2026-02-26 15:41:31', '2026-03-04 12:46:48', 3),
+(5, 5, 'can i know if there is products made from ginger spices?', 'Whole Spices', 'can i know if there is products made from ginger spices? if there is i would like to buy it.', 5, 'Low', 'Approved', NULL, '2026-03-04 13:10:12', '2026-03-04 13:15:28', 3);
 
 -- --------------------------------------------------------
 
@@ -702,7 +728,10 @@ CREATE TABLE `request_history` (
 INSERT INTO `request_history` (`history_id`, `request_id`, `changed_by_admin`, `old_status`, `new_status`, `notes`, `changed_at`) VALUES
 (1, 1, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-01-22 19:49:52'),
 (2, 3, 1, 'Pending', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-01-22 20:15:33'),
-(7, 2, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-03-02 16:44:34');
+(7, 2, 1, 'Pending', 'Approved', 'Assigned to farmer: dilshani (ID: 2)', '2026-03-02 16:44:34'),
+(8, 4, 1, 'Pending', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-03-04 12:46:48'),
+(9, 5, 1, 'Pending', 'Reviewed', 'Marked as reviewed by admin', '2026-03-04 13:14:17'),
+(10, 5, 1, 'Reviewed', 'Approved', 'Assigned to farmer: ranjith edirisinghe (ID: 3)', '2026-03-04 13:15:28');
 
 -- --------------------------------------------------------
 
@@ -787,7 +816,10 @@ INSERT INTO `settings` (`setting_id`, `setting_key`, `setting_value`, `updated_a
 (9, 'instagram', 'https://instagram.com/spiceceylon', '2025-12-24 07:09:25'),
 (10, 'twitter', 'https://twitter.com/spiceceylon', '2025-12-24 07:09:25'),
 (11, 'youtube', 'https://youtube.com/spiceceylon', '2025-12-24 07:09:25'),
-(12, 'linkedin', 'https://linkedin.com/company/spiceceylon', '2025-12-24 07:09:25');
+(12, 'linkedin', 'https://linkedin.com/company/spiceceylon', '2025-12-24 07:09:25'),
+(13, 'free_shipping_min', '5000', '2026-03-04 13:48:09'),
+(14, 'local_shipping_fee', '300', '2026-03-04 14:42:26'),
+(15, 'international_shipping_fee', '2500', '2026-03-04 13:48:09');
 
 -- --------------------------------------------------------
 
@@ -804,6 +836,16 @@ CREATE TABLE `shipping_zones` (
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `shipping_zones`
+--
+
+INSERT INTO `shipping_zones` (`zone_id`, `zone_name`, `countries`, `shipping_fee`, `delivery_time`, `is_active`, `created_at`) VALUES
+(1, 'Colombo District', ' Sri Lanka (Colombo)', 200.00, '1- 3 business days', 1, '2026-03-04 13:49:27'),
+(2, 'Other Districts', ' Sri Lanka (Other)', 300.00, ' 3-6 days', 1, '2026-03-04 14:01:16'),
+(3, 'Asia', ' India, Singapore, Malaysia', 2000.00, ' 7-10 days', 1, '2026-03-04 14:03:01'),
+(5, 'Europe', ' UK, Germany, France', 3500.00, ' 7-14 business days', 1, '2026-03-04 14:13:52');
 
 -- --------------------------------------------------------
 
@@ -878,10 +920,10 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `name`, `email`, `password`, `phone`, `address`, `role`, `farm_location`, `profile_image`, `is_registered`, `created_at`, `status`, `email_notifications`, `push_notifications`, `last_notification_check`) VALUES
-(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0761234567', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active', 1, 1, '2026-03-03 08:19:36'),
+(1, 'sripali', 's@gmail.com', '$2y$10$fvsQh6aRyY.xL1BP10oqVO7D/YUbHhvpwyujxLAiVs4FchN/wPjDG', '0761234567', 'debathgama,kegalle', 'customer', '', 'user_1_1764943140.jpg', 1, '2025-11-15 07:23:11', 'active', 1, 1, '2026-03-06 15:14:55'),
 (2, 'dilshani', 'd@gmail.com', '$2y$10$L4aUm6Xtp59TDz.YI09bO.rgZn0XlB8GWF/KWzeUtfn1AydINuQ52', '0523465789', '143/B/, 1st Ln, Dehianga, Nuwara Eliya', 'farmer', 'kandy / Nuwara Eliya', 'default-avatar.jpg', 1, '2025-11-15 07:48:09', 'active', 1, 1, '2026-03-03 12:34:13'),
-(3, 'ranjith edirisinghe', 'r@gmail.com', '$2y$10$W7hhU7TOf4g7vZOlwg7sbeolMA5fQ0mH.m15aDuYICLEv8SGFq8CO', '0352258339', 'nuwaraeliya', 'farmer', 'nuwaraeliya', 'default-avatar.jpg', 1, '2025-12-23 13:03:52', 'active', 1, 1, NULL),
-(5, 'Peter Smith', 'peter@gmail.com', '$2y$10$ELuqYyfTpHBXpbdHHQayXuRzJsV2LpWLOT.n.ElQw8ChDa18PR6gW', '0777346982', 'no 07, main street, Colombo', 'customer', '', 'user_5_1772457313.jpg', 1, '2026-02-23 09:37:09', 'pending', 1, 1, '2026-03-02 13:29:58');
+(3, 'ranjith edirisinghe', 'r@gmail.com', '$2y$10$W7hhU7TOf4g7vZOlwg7sbeolMA5fQ0mH.m15aDuYICLEv8SGFq8CO', '0352258339', 'nuwaraeliya', 'farmer', 'nuwaraeliya', 'default-avatar.jpg', 1, '2025-12-23 13:03:52', 'active', 1, 1, '2026-03-05 15:30:35'),
+(5, 'Peter Smith', 'peter@gmail.com', '$2y$10$ELuqYyfTpHBXpbdHHQayXuRzJsV2LpWLOT.n.ElQw8ChDa18PR6gW', '0777346982', 'no 07, main street, Colombo', 'customer', '', 'user_5_1772457313.jpg', 1, '2026-02-23 09:37:09', 'pending', 1, 1, '2026-03-04 13:07:25');
 
 -- --------------------------------------------------------
 
@@ -966,7 +1008,7 @@ INSERT INTO `user_notification_status` (`status_id`, `notification_id`, `user_id
 (7, 5, 2, 1, '2026-02-25 12:19:39', '2026-02-25 12:19:39'),
 (8, 16, 1, 0, NULL, '2026-03-02 17:18:48'),
 (9, 16, 2, 0, NULL, '2026-03-02 17:18:48'),
-(10, 16, 3, 0, NULL, '2026-03-02 17:18:48');
+(10, 16, 3, 1, '2026-03-05 15:32:55', '2026-03-02 17:18:48');
 
 -- --------------------------------------------------------
 
@@ -1377,7 +1419,7 @@ ALTER TABLE `banners`
 -- AUTO_INCREMENT for table `cart`
 --
 ALTER TABLE `cart`
-  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=37;
+  MODIFY `cart_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=43;
 
 --
 -- AUTO_INCREMENT for table `contact_info`
@@ -1419,25 +1461,25 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
 
 --
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `order_item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
 
 --
 -- AUTO_INCREMENT for table `order_status_history`
 --
 ALTER TABLE `order_status_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
 -- AUTO_INCREMENT for table `page_content`
 --
 ALTER TABLE `page_content`
-  MODIFY `content_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `content_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=33;
 
 --
 -- AUTO_INCREMENT for table `password_resets`
@@ -1467,7 +1509,7 @@ ALTER TABLE `products`
 -- AUTO_INCREMENT for table `product_requests`
 --
 ALTER TABLE `product_requests`
-  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `request_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `product_reviews`
@@ -1485,7 +1527,7 @@ ALTER TABLE `requests`
 -- AUTO_INCREMENT for table `request_history`
 --
 ALTER TABLE `request_history`
-  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `history_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=11;
 
 --
 -- AUTO_INCREMENT for table `request_notifications`
@@ -1509,13 +1551,13 @@ ALTER TABLE `sales`
 -- AUTO_INCREMENT for table `settings`
 --
 ALTER TABLE `settings`
-  MODIFY `setting_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `setting_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
 
 --
 -- AUTO_INCREMENT for table `shipping_zones`
 --
 ALTER TABLE `shipping_zones`
-  MODIFY `zone_id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `zone_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `sliders`
