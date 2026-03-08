@@ -76,63 +76,63 @@ SpiceCeylon revolutionizes the traditional spice trade by eliminating middlemen 
 
 ## 📁 Project Structure
 spiceceylon/
-├── admin/ # Admin area
-│ ├── dashboard.php # Admin dashboard
-│ ├── manage_users.php # User management
-│ ├── manage_products.php # Product approval
-│ ├── manage_orders.php # Order management
-│ ├── manage_requests.php # Request management
-│ ├── website_management.php # Website settings
-│ ├── content_editor.php # Page content editor
-│ └── messaging_hub.php # Message center
+├── admin/ - Admin area
+│ ├── dashboard.php - Admin dashboard
+│ ├── manage_users.php - User management
+│ ├── manage_products.php - Product approval
+│ ├── manage_orders.php - Order management
+│ ├── manage_requests.php - Request management
+│ ├── website_management.php - Website settings
+│ ├── content_editor.php - Page content editor
+│ └── messaging_hub.php - Message center
 │
-├── farmer/ # Farmer area
-│ ├── dashboard.php # Farmer dashboard
-│ ├── manage_products.php # Product management
-│ ├── orders.php # Order management
-│ ├── customer_requests.php # Request handling
-│ ├── my_sales.php # Sales analytics
-│ ├── forecasting.php # Sales forecasting
-│ └── earnings.php # Earnings monitor
+├── farmer/ - Farmer area
+│ ├── dashboard.php - Farmer dashboard
+│ ├── manage_products.php - Product management
+│ ├── orders.php - Order management
+│ ├── customer_requests.php - Request handling
+│ ├── my_sales.php - Sales analytics
+│ ├── forecasting.php - Sales forecasting
+│ └── earnings.php - Earnings monitor
 │
-├── customer/ # Customer area
-│ ├── home.php # Product browsing
-│ ├── cart.php # Shopping cart
-│ ├── checkout.php # Checkout process
-│ ├── orders.php # Order history
-│ ├── wishlist.php # Saved products
-│ ├── request.php # Product requests
-│ └── messages.php # Messaging
+├── customer/ - Customer area
+│ ├── home.php - Product browsing
+│ ├── cart.php - Shopping cart
+│ ├── checkout.php - Checkout process
+│ ├── orders.php - Order history
+│ ├── wishlist.php - Saved products
+│ ├── request.php - Product requests
+│ └── messages.php - Messaging
 │
-├── auth/ # Authentication
-│ ├── login.php # User login
-│ ├── register.php # User registration
-│ ├── logout.php # Logout with confirmation
-│ └── forgot_password.php # Password recovery
+├── auth/ - Authentication
+│ ├── login.php - User login
+│ ├── register.php - User registration
+│ ├── logout.php - Logout with confirmation
+│ └── forgot_password.php - Password recovery
 │
-├── config/ # Configuration
-│ ├── db.php # Database connection
-│ ├── settings.php # Settings helper
-│ └── functions.php # Global functions
+├── config/ - Configuration
+│ ├── db.php - Database connection
+│ ├── settings.php - Settings helper
+│ └── functions.php - Global functions
 │
-├── assets/ # Static assets
-│ ├── css/ # Stylesheets
-│ ├── js/ # JavaScript files
-│ └── images/ # Images and uploads
-│ ├── products/ # Product images
-│ ├── profile_images/ # User profile pictures
-│ ├── about/ # About page images
-│ └── team/ # Team member photos
+├── assets/ - Static assets
+│ ├── css/ - Stylesheets
+│ ├── js/ - JavaScript files
+│ └── images/ - Images and uploads
+│ ├── products/ - Product images
+│ ├── profile_images/ - User profile pictures
+│ ├── about/ - About page images
+│ └── team/ - Team member photos
 │
-├── videos/ # Landing page video
+├── videos/ - Landing page video
 │
-├── forecast/ # Machine Learning
-│ ├── forecast_model.py # Python prediction model
-│ ├── train_model.py # Model training script
-│ └── requirements.txt # Python dependencies
+├── forecast/ - Machine Learning
+│ ├── forecast_model.py - Python prediction model
+│ ├── train_model.py - Model training script
+│ └── requirements.txt - Python dependencies
 │
-└── database/ # Database files
-└── spiceceylon.sql # Complete database schema
+└── database/ - Database files
+└── spiceceylon.sql - Complete database schema
 
 text
 
@@ -142,32 +142,29 @@ text
 
 ### Prerequisites
 
-- XAMPP/WAMP/LAMP with PHP 8.2+
-- MySQL 8.0+
-- Python 3.10+ (for forecasting)
-- Web browser (Chrome/Firefox/Edge)
-- Git (for version control)
+XAMPP/WAMP/LAMP with PHP 8.2+, MySQL 8.0+, Python 3.10+ (for forecasting), Web browser (Chrome/Firefox/Edge), Git (for version control)
 
 ### Step-by-Step Setup
 
-1. **Clone the Repository**
-```bash
+**1. Clone the Repository**
 git clone https://github.com/Lakshani246/SpiceCeylon.git
 cd SpiceCeylon
-Configure Database
 
-sql
+text
+
+**2. Configure Database**
 -- Open phpMyAdmin (http://localhost/phpmyadmin)
 -- Create new database
 CREATE DATABASE spiceceylon_db;
 
 -- Import database schema
 -- Navigate to database/spiceceylon.sql and import
-Configure Database Connection
 
-Edit config/db.php with your database credentials:
+text
 
-php
+**3. Configure Database Connection**
+Edit `config/db.php` with your database credentials:
+```php
 <?php
 $host = "localhost";
 $user = "root";
@@ -180,32 +177,34 @@ if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
 ?>
-Configure Python Environment (for forecasting)
+4. Configure Python Environment (for forecasting)
 
-bash
+text
 cd forecast
 pip install -r requirements.txt
-Set File Permissions (Linux/Mac)
+5. Set File Permissions (Linux/Mac)
 
-bash
+text
 chmod -R 755 assets/images/
 chmod -R 755 assets/images/products/
 chmod -R 755 assets/images/profile_images/
-Start XAMPP/WAMP
+6. Start XAMPP/WAMP - Start Apache and MySQL services
 
-Start Apache and MySQL services
-
-Access the Application
+7. Access the Application
 
 text
 http://localhost/SpiceCeylon/
 🔑 Default Login Credentials
-Role	Email	Password	Description
-Super Admin	jk@gmail.com	admin123	Full system access
-Farmer	d@gmail.com	farmer123	Product management
-Farmer	r@gmail.com	farmer123	Second farmer account
-Customer	s@gmail.com	customer123	Regular customer
-Customer	peter@gmail.com	customer123	Second customer account
+Super Admin: jk@gmail.com / admin123 - Full system access
+
+Farmer: d@gmail.com / farmer123 - Product management
+
+Farmer: r@gmail.com / farmer123 - Second farmer account
+
+Customer: s@gmail.com / customer123 - Regular customer
+
+Customer: peter@gmail.com / customer123 - Second customer account
+
 💻 Usage Guide
 For Customers
 Browse Products: Navigate to home page to view all available spices
@@ -256,46 +255,48 @@ Announcements: Send notifications to users
 
 📊 Database Schema
 Core Tables
-Table	Records	Purpose
-users	6+	User accounts (customers, farmers)
-admins	1	Admin accounts
-products	44+	Spice products
-orders	11+	Customer orders
-order_items	19+	Items in each order
-cart	Variable	Shopping cart items
-wishlist	11+	Customer wishlists
+users: 6+ records - User accounts (customers, farmers)
+
+admins: 1 record - Admin accounts
+
+products: 44+ records - Spice products
+
+orders: 11+ records - Customer orders
+
+order_items: 19+ records - Items in each order
+
+cart: Variable records - Shopping cart items
+
+wishlist: 11+ records - Customer wishlists
+
 Content Tables
-Table	Records	Purpose
-page_content	33+	Homepage, About page content
-faq_items	4	FAQ questions and answers
-contact_info	4	Contact details
-team_members	3	Team member information
+page_content: 33+ records - Homepage, About page content
+
+faq_items: 4 records - FAQ questions and answers
+
+contact_info: 4 records - Contact details
+
+team_members: 3 records - Team member information
+
 System Tables
-Table	Records	Purpose
-settings	34+	Website settings
-shipping_zones	5+	Shipping zones and rates
-payment_methods	4	Available payment methods
-notifications	16+	User notifications
-messages	12+	User-to-user messages
-announcements	4	Admin announcements
+settings: 34+ records - Website settings
+
+shipping_zones: 5+ records - Shipping zones and rates
+
+payment_methods: 4 records - Available payment methods
+
+notifications: 16+ records - User notifications
+
+messages: 12+ records - User-to-user messages
+
+announcements: 4 records - Admin announcements
+
 🤖 Machine Learning Forecasting
 Sales Prediction Model
-python
-# forecast/forecast_model.py
-- Algorithm: Linear Regression / Random Forest
-- Features: Historical sales, seasonal patterns
-- Output: Next 3-6 months demand prediction
-- Accuracy: ~85% on test data
+forecast/forecast_model.py - Algorithm: Linear Regression / Random Forest, Features: Historical sales, seasonal patterns, Output: Next 3-6 months demand prediction, Accuracy: ~85% on test data
+
 Running Forecasts
-Navigate to farmer dashboard
-
-Click on "Sales Forecasting"
-
-Select product and forecast period
-
-View interactive chart with predictions
-
-Export forecast data as CSV
+Navigate to farmer dashboard, Click on "Sales Forecasting", Select product and forecast period, View interactive chart with predictions, Export forecast data as CSV
 
 🔒 Security Features
 Password Hashing: BCrypt for secure password storage
@@ -330,13 +331,7 @@ This is a university project and is not open for external contributions. However
 This project is developed for educational purposes as part of academic requirements at [Your University Name].
 
 👨‍💻 Developer
-Lakshani246
-
-Final Year Project
-
-BSc (Hons) in Software Engineering
-
-[University Name]
+Lakshani246 - Final Year Project, BSc (Hons) in Software Engineering, [University Name]
 
 🙏 Acknowledgments
 Project Supervisor: For guidance and feedback
@@ -348,4 +343,3 @@ Open Source Community: For libraries and tools used
 Bootstrap Team: For the responsive framework
 
 Chart.js Contributors: For visualization libraries
-
