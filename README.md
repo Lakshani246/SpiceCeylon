@@ -76,7 +76,7 @@ SpiceCeylon revolutionizes the traditional spice trade by eliminating middlemen 
 
 ## 📁 Project Structure
 spiceceylon/
-├── 📁 admin/ # Admin area
+├── admin/ # Admin area
 │ ├── dashboard.php # Admin dashboard
 │ ├── manage_users.php # User management
 │ ├── manage_products.php # Product approval
@@ -86,7 +86,7 @@ spiceceylon/
 │ ├── content_editor.php # Page content editor
 │ └── messaging_hub.php # Message center
 │
-├── 📁 farmer/ # Farmer area
+├── farmer/ # Farmer area
 │ ├── dashboard.php # Farmer dashboard
 │ ├── manage_products.php # Product management
 │ ├── orders.php # Order management
@@ -95,7 +95,7 @@ spiceceylon/
 │ ├── forecasting.php # Sales forecasting
 │ └── earnings.php # Earnings monitor
 │
-├── 📁 customer/ # Customer area
+├── customer/ # Customer area
 │ ├── home.php # Product browsing
 │ ├── cart.php # Shopping cart
 │ ├── checkout.php # Checkout process
@@ -104,39 +104,44 @@ spiceceylon/
 │ ├── request.php # Product requests
 │ └── messages.php # Messaging
 │
-├── 📁 auth/ # Authentication
+├── auth/ # Authentication
 │ ├── login.php # User login
 │ ├── register.php # User registration
 │ ├── logout.php # Logout with confirmation
 │ └── forgot_password.php # Password recovery
 │
-├── 📁 config/ # Configuration
+├── config/ # Configuration
 │ ├── db.php # Database connection
 │ ├── settings.php # Settings helper
 │ └── functions.php # Global functions
 │
-├── 📁 assets/ # Static assets
+├── assets/ # Static assets
 │ ├── css/ # Stylesheets
 │ ├── js/ # JavaScript files
-│ ├── images/ # Images and uploads
-│ │ ├── products/ # Product images
-│ │ ├── profile_images/ # User profile pictures
-│ │ ├── about/ # About page images
-│ │ └── team/ # Team member photos
-│ └── videos/ # Landing page video
+│ └── images/ # Images and uploads
+│ ├── products/ # Product images
+│ ├── profile_images/ # User profile pictures
+│ ├── about/ # About page images
+│ └── team/ # Team member photos
 │
-├── 📁 forecast/ # Machine Learning
+├── videos/ # Landing page video
+│
+├── forecast/ # Machine Learning
 │ ├── forecast_model.py # Python prediction model
 │ ├── train_model.py # Model training script
 │ └── requirements.txt # Python dependencies
 │
-└── 📁 database/ # Database files
+└── database/ # Database files
 └── spiceceylon.sql # Complete database schema
 
+text
+
+---
 
 ## 🔧 Installation Guide
 
 ### Prerequisites
+
 - XAMPP/WAMP/LAMP with PHP 8.2+
 - MySQL 8.0+
 - Python 3.10+ (for forecasting)
@@ -149,16 +154,20 @@ spiceceylon/
 ```bash
 git clone https://github.com/Lakshani246/SpiceCeylon.git
 cd SpiceCeylon
+Configure Database
 
-2.Configure Database
+sql
 -- Open phpMyAdmin (http://localhost/phpmyadmin)
 -- Create new database
 CREATE DATABASE spiceceylon_db;
 
 -- Import database schema
 -- Navigate to database/spiceceylon.sql and import
+Configure Database Connection
 
-3.Configure Database Connection
+Edit config/db.php with your database credentials:
+
+php
 <?php
 $host = "localhost";
 $user = "root";
@@ -171,23 +180,32 @@ if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
 ?>
+Configure Python Environment (for forecasting)
 
-4.Configure Python Environment (for forecasting)
+bash
 cd forecast
 pip install -r requirements.txt
+Set File Permissions (Linux/Mac)
 
-5. Start XAMPP/WAMP
+bash
+chmod -R 755 assets/images/
+chmod -R 755 assets/images/products/
+chmod -R 755 assets/images/profile_images/
+Start XAMPP/WAMP
+
 Start Apache and MySQL services
 
-6.Access the Application
+Access the Application
+
+text
 http://localhost/SpiceCeylon/
-
-### Default Login Credentials
-
+🔑 Default Login Credentials
+Role	Email	Password	Description
 Super Admin	jk@gmail.com	admin123	Full system access
 Farmer	d@gmail.com	farmer123	Product management
+Farmer	r@gmail.com	farmer123	Second farmer account
 Customer	s@gmail.com	customer123	Regular customer
-
+Customer	peter@gmail.com	customer123	Second customer account
 💻 Usage Guide
 For Customers
 Browse Products: Navigate to home page to view all available spices
@@ -236,15 +254,38 @@ Settings: Configure shipping zones and payment methods
 
 Announcements: Send notifications to users
 
+📊 Database Schema
+Core Tables
+Table	Records	Purpose
+users	6+	User accounts (customers, farmers)
+admins	1	Admin accounts
+products	44+	Spice products
+orders	11+	Customer orders
+order_items	19+	Items in each order
+cart	Variable	Shopping cart items
+wishlist	11+	Customer wishlists
+Content Tables
+Table	Records	Purpose
+page_content	33+	Homepage, About page content
+faq_items	4	FAQ questions and answers
+contact_info	4	Contact details
+team_members	3	Team member information
+System Tables
+Table	Records	Purpose
+settings	34+	Website settings
+shipping_zones	5+	Shipping zones and rates
+payment_methods	4	Available payment methods
+notifications	16+	User notifications
+messages	12+	User-to-user messages
+announcements	4	Admin announcements
 🤖 Machine Learning Forecasting
-
 Sales Prediction Model
+python
 # forecast/forecast_model.py
 - Algorithm: Linear Regression / Random Forest
 - Features: Historical sales, seasonal patterns
 - Output: Next 3-6 months demand prediction
 - Accuracy: ~85% on test data
-
 Running Forecasts
 Navigate to farmer dashboard
 
@@ -286,7 +327,7 @@ Minified Assets: Compressed CSS and JavaScript
 This is a university project and is not open for external contributions. However, feel free to fork and adapt for your own use.
 
 📝 License
-This project is developed for educational purposes as part of academic requirements at Cardiff Metropolitan University.
+This project is developed for educational purposes as part of academic requirements at [Your University Name].
 
 👨‍💻 Developer
 Lakshani246
@@ -295,7 +336,7 @@ Final Year Project
 
 BSc (Hons) in Software Engineering
 
-Cardiff Metropolitan University
+[University Name]
 
 🙏 Acknowledgments
 Project Supervisor: For guidance and feedback
@@ -307,3 +348,4 @@ Open Source Community: For libraries and tools used
 Bootstrap Team: For the responsive framework
 
 Chart.js Contributors: For visualization libraries
+
