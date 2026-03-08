@@ -405,6 +405,11 @@ $current_time = date('h:i A');
                             <?php endif; ?>
                         </a>
                     </li>
+                    <li class="nav-item">
+            <a class="nav-link" href="orders.php">
+                <i class="fas fa-shopping-cart me-2"></i> My Orders
+            </a>
+        </li>
                     <!-- Add Messages Link -->
 <li class="nav-item">
     <a class="nav-link" href="messages.php">

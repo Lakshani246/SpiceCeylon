@@ -744,6 +744,11 @@ $conn->close();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="orders.php">
+                            <i class="fas fa-shopping-cart me-2"></i> My Orders
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="earnings.php">
                             <i class="fas fa-wallet me-2"></i>
                             Earnings Monitor

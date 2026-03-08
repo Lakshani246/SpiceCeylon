@@ -37,6 +37,11 @@
             </a>
         </li>
         <li class="nav-item">
+            <a class="nav-link" href="orders.php">
+                <i class="fas fa-shopping-cart me-2"></i> My Orders
+            </a>
+        </li>
+        <li class="nav-item">
             <a class="nav-link" href="messages.php">
                 <i class="fas fa-envelope me-2"></i>
                 Messages

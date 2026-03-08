@@ -378,6 +378,11 @@ $conn->close();
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="orders.php">
+                            <i class="fas fa-shopping-cart me-2"></i> My Orders
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="my_sales.php">
                             <i class="fas fa-chart-line me-2"></i>
                             Sales Analytics

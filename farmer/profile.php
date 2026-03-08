@@ -547,6 +547,7 @@ $conn->close();
 <body>
     <div class="container-fluid">
         <div class="row">
+            
             <!-- Farmer Sidebar -->
             <nav class="col-md-2 d-md-block sidebar p-0">
                 <div class="brand">
@@ -580,6 +581,11 @@ $conn->close();
                         <a class="nav-link" href="customer_requests.php">
                             <i class="fas fa-inbox me-2"></i>
                             Customer Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="orders.php">
+                            <i class="fas fa-shopping-cart me-2"></i> My Orders
                         </a>
                     </li>
                     <li class="nav-item">

@@ -1,5 +1,4 @@
 <?php
-// Set page title
 $page_title = "Add New Product";
 
 // Start output buffering to prevent header errors
