@@ -177,7 +177,9 @@ if ($conn->connect_error) {
     die("Database Connection Failed: " . $conn->connect_error);
 }
 ?>
-4. Configure Python Environment (for forecasting)
+text
+
+**4. Configure Python Environment (for forecasting)**
 
 text
 cd forecast
@@ -190,7 +192,7 @@ chmod -R 755 assets/images/products/
 chmod -R 755 assets/images/profile_images/
 6. Start XAMPP/WAMP - Start Apache and MySQL services
 
-7. Access the Application
+**7. Access the Application**
 
 text
 http://localhost/SpiceCeylon/
@@ -313,25 +315,15 @@ Role-based Access: Different permissions for each user type
 
 Secure File Uploads: Validation for image uploads
 
-📈 Performance Optimizations
-Database Indexing: Optimized queries with proper indexes
-
-Caching: Settings caching to reduce database queries
-
-Lazy Loading: Images load as needed
-
-AJAX Calls: Asynchronous operations without page reload
-
-Minified Assets: Compressed CSS and JavaScript
 
 🤝 Contributing
 This is a university project and is not open for external contributions. However, feel free to fork and adapt for your own use.
 
 📝 License
-This project is developed for educational purposes as part of academic requirements at [Your University Name].
+This project is developed for educational purposes as part of academic requirements
 
 👨‍💻 Developer
-Lakshani246 - Final Year Project, BSc (Hons) in Software Engineering, [University Name]
+Lakshani246 - Final Year Project, BSc (Hons) in Software Engineering, 
 
 🙏 Acknowledgments
 Project Supervisor: For guidance and feedback
