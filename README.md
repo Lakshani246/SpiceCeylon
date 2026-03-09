@@ -1,10 +1,10 @@
-🌶️ SpiceCeylon – Smart Spice Marketplace with Sales Forecasting
+<b>🌶️ SpiceCeylon – Smart Spice Marketplace with Sales Forecasting</b>
 
 SpiceCeylon is a web-based e-commerce platform designed to connect Sri Lankan spice farmers directly with customers. The system eliminates middlemen and allows farmers to sell their products online while providing customers with access to high-quality spices.
 
 The platform also includes a sales forecasting module that helps farmers predict future demand using historical sales data.
 
-📌 Project Objective
+<b>📌 Project Objective</b>
 
 The main objective of this system is to:
 
@@ -18,7 +18,7 @@ Provide sales analytics and forecasting for farmers
 
 Improve transparency and efficiency in the spice supply chain
 
-👥 System Users
+<b>👥 System Users</b>
 
 The system consists of three main user roles:
 
