@@ -1,115 +1,73 @@
-<b>🌶️ SpiceCeylon – Smart Spice Marketplace with Sales Forecasting</b>
+# 🌶️ SpiceCeylon - Smart E-Commerce & Sales Forecasting System for Sri Lankan Spice Producers
 
-SpiceCeylon is a web-based e-commerce platform designed to connect Sri Lankan spice farmers directly with customers. The system eliminates middlemen and allows farmers to sell their products online while providing customers with access to high-quality spices.
+A comprehensive web-based platform connecting Sri Lankan spice farmers directly with global customers, featuring AI-powered sales forecasting and real-time analytics.
 
-The platform also includes a sales forecasting module that helps farmers predict future demand using historical sales data.
+---
 
-<b>📌 Project Objective</b>
+## 📋 About The Project
 
-The main objective of this system is to:
+SpiceCeylon revolutionizes the traditional spice trade by eliminating middlemen and providing a direct farmer-to-customer marketplace. The system features role-based dashboards, real-time inventory management, integrated messaging, and machine learning-based sales forecasting to help farmers make data-driven decisions.
 
-Provide an online marketplace for Sri Lankan spices
+---
 
-Allow farmers to manage and sell products easily
+## 🚀 Key Features
 
-Enable customers to purchase spices directly
+### Customer Features
+- **Product Browsing**: Browse spices by category, price, and popularity with advanced filtering
+- **Shopping Cart**: Real-time price calculation with multiple package sizes
+- **Secure Checkout**: Shipping fee calculation based on zones with multiple payment options
+- **Order Tracking**: Real-time order status updates with history tracking
+- **Product Requests**: Request specific spice varieties from farmers
+- **Wishlist Management**: Save favorite products for future purchases
+- **Messaging System**: Direct communication with farmers and admins
+- **Reviews & Ratings**: Leave feedback on purchased products
 
-Provide sales analytics and forecasting for farmers
+### Farmer Features
+- **Farmer Dashboard**: Comprehensive overview of sales, earnings, and performance metrics
+- **Product Management**: Complete CRUD operations for spice products with image upload
+- **Inventory Tracking**: Real-time stock monitoring with low-stock alerts
+- **Order Management**: View and update orders containing their products
+- **Customer Requests**: Handle and fulfill customer product requests
+- **Sales Analytics**: Interactive charts for sales trends and top products
+- **Earnings Monitor**: Track income with payment history
+- **Sales Forecasting**: AI-powered demand predictions using Python ML
 
-Improve transparency and efficiency in the spice supply chain
+### Admin Features
+- **Admin Dashboard**: Complete platform oversight with key metrics
+- **User Management**: Manage customers, farmers, and admins with status controls
+- **Product Approval**: Review and approve farmer products with rejection reasons
+- **Order Management**: Full control over all orders with status updates
+- **Request Management**: Assign customer requests to appropriate farmers
+- **Sales Analytics**: Real-time sales data visualization with charts
+- **Sales Forecasting**: AI-powered demand predictions for business planning
+- **Content Management**: Edit website content (home, about, FAQ, contact)
+- **Website Settings**: Configure shipping zones, payment methods, and social links
+- **Announcements**: Send targeted broadcasts to specific user groups
+- **Messaging Hub**: Monitor all platform communications
 
-<b>👥 System Users</b>
+### System Features
+- **Real-time Notifications**: Instant updates for orders, messages, and status changes
+- **Auto-sync Settings**: Configuration changes reflect immediately on all pages
+- **Beautiful Popups**: Centered success/error/confirmation modals with animations
+- **CSV/PDF Export**: Export sales reports and analytics data
+- **Sales Forecasting**: Python-based ML predictions with historical data
+- **Responsive Design**: Fully responsive on desktop, tablet, and mobile
+- **Role-based Access**: Secure authentication with different permission levels
 
-The system consists of three main user roles:
+---
 
-<b>1️⃣ Admin</b>
+## 🛠️ Built With
 
-Manage users (farmers & customers),Manage products,Approve or reject product listings,Manage orders,Send announcements,Monitor system performance
+**Backend**: PHP 8.2, MySQL 8.0, Python 3.10, Apache
 
-<b>2️⃣ Farmer</b>
+**Frontend**: HTML5/CSS3, JavaScript, Bootstrap 5.3, Chart.js, Font Awesome 6.0, Summernote, jQuery
 
-Add, update, and delete products,Manage product inventory,View and process orders,View earnings and sales reports,Access forecasting dashboard,Respond to customer requests
+**Libraries & Tools**: SheetJS (XLSX), jsPDF, Chart.js, MySQLi, pandas, numpy, scikit-learn, matplotlib
 
-<b>3️⃣ Customer</b>
+---
 
-Browse spice products,Add products to cart,Purchase products,Track order history,Add products to wishlist,Send spice requests,
-Review products
+## 📁 Project Structure
 
-<b>✨ Key Features</b></br>
-
-<b>🛒 E-Commerce Features</b>
-
-Product catalog,Shopping cart,Secure checkout,Order tracking,Wishlist functionality
-
-<b>📊 Sales Analytics</b>
-
-Sales performance dashboard
-
-Product sales reports
-
-Revenue tracking
-
-Export reports to CSV/PDF
-
-<b>🤖 Sales Forecasting</b>
-
-Predict future demand using historical sales data
-
-Helps farmers plan production and inventory
-
-Data visualization using charts
-
-<b>💬 Communication System</b>
-
-Messaging between users
-
-Notifications
-
-Customer request management
-
-<b>🔐 Security</b>
-
-Role-based access control
-
-Secure authentication system
-
-Password hashing
-
-Input validation
-
-<b>🛠️ Technologies Used</b>
-Frontend 
-HTML5,CSS3,JavaScript,Bootstrap,Chart.js,Font Awesome
-
-<b>Backend</b>
-
-PHP
-
-MySQL
-
-<b>Machine Learning</b>
-
-Python
-
-Pandas
-
-NumPy
-
-Scikit-learn
-
-Matplotlib
-
-<b>Tools</b>
-
-XAMPP
-
-phpMyAdmin
-
-Git & GitHub
-
-Visual Studio Code
-
-<b>📁 Project Structure</b>
 SpiceCeylon/
 │
 ├── admin/<br>
@@ -125,17 +83,17 @@ SpiceCeylon/
 ├── forecast/<br>
 │
 ├── assets/<br>
-│   ├── css
-│   ├── js
-│   └── images
+│   ├── css<br>
+│   ├── js<br>
+│   └── images<br>
 │
 ├── database/<br>
-│   └── spiceceylon.sql
+│   └── spiceceylon.sql<br>
 │
 └── index.php</br>
 
-<b>⚙️ Installation Guide</b>
-<b>1️⃣ Clone the Repository
+<b>⚙️ Installation Guide</b><br></br>
+<b>1️⃣ Clone the Repository</b>
 git clone https://github.com/YOUR_USERNAME/SpiceCeylon.git
 
 <b>2️⃣ Move Project to XAMPP</b>
@@ -166,7 +124,7 @@ Open browser:http://localhost/SpiceCeylon
 | -------- | ------------------   | ----------- |
 | Admin    | [jk@gmail.com]       | 9701        |
 | Farmer   | [d@gmail.com]        | D67890      |
-| Customer | [sr@gmail.com]       | 12345       |
+| Customer | [s@gmail.com]       | 12345       |
 
 <b>📊 Forecasting Module</b>
 
