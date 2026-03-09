@@ -22,64 +22,26 @@ Improve transparency and efficiency in the spice supply chain
 
 The system consists of three main user roles:
 
-1️⃣ Admin
+<b>1️⃣ Admin</b>
 
-Manage users (farmers & customers)
+Manage users (farmers & customers),Manage products,Approve or reject product listings,Manage orders,Send announcements,Monitor system performance
 
-Manage products
+<b>2️⃣ Farmer</b>
 
-Approve or reject product listings
+Add, update, and delete products,Manage product inventory,View and process orders,View earnings and sales reports,Access forecasting dashboard,Respond to customer requests
 
-Manage orders
+<b>3️⃣ Customer</b>
 
-Send announcements
-
-Monitor system performance
-
-2️⃣ Farmer
-
-Add, update, and delete products
-
-Manage product inventory
-
-View and process orders
-
-View earnings and sales reports
-
-Access forecasting dashboard
-
-Respond to customer requests
-
-3️⃣ Customer
-
-Browse spice products
-
-Add products to cart
-
-Purchase products
-
-Track order history
-
-Add products to wishlist
-
-Send spice requests
-
+Browse spice products,Add products to cart,Purchase products,Track order history,Add products to wishlist,Send spice requests,
 Review products
 
-✨ Key Features
-🛒 E-Commerce Features
+<b>✨ Key Features</b></br>
 
-Product catalog
+<b>🛒 E-Commerce Features</b>
 
-Shopping cart
+Product catalog,Shopping cart,Secure checkout,Order tracking,Wishlist functionality
 
-Secure checkout
-
-Order tracking
-
-Wishlist functionality
-
-📊 Sales Analytics
+<b>📊 Sales Analytics</b>
 
 Sales performance dashboard
 
@@ -89,7 +51,7 @@ Revenue tracking
 
 Export reports to CSV/PDF
 
-🤖 Sales Forecasting
+<b>🤖 Sales Forecasting</b>
 
 Predict future demand using historical sales data
 
@@ -97,7 +59,7 @@ Helps farmers plan production and inventory
 
 Data visualization using charts
 
-💬 Communication System
+<b>💬 Communication System</b>
 
 Messaging between users
 
@@ -105,7 +67,7 @@ Notifications
 
 Customer request management
 
-🔐 Security
+<b>🔐 Security</b>
 
 Role-based access control
 
@@ -115,28 +77,17 @@ Password hashing
 
 Input validation
 
-🛠️ Technologies Used
-Frontend
+<b>🛠️ Technologies Used</b>
+Frontend 
+HTML5,CSS3,JavaScript,Bootstrap,Chart.js,Font Awesome
 
-HTML5
-
-CSS3
-
-JavaScript
-
-Bootstrap
-
-Chart.js
-
-Font Awesome
-
-Backend
+<b>Backend</b>
 
 PHP
 
 MySQL
 
-Machine Learning
+<b>Machine Learning</b>
 
 Python
 
@@ -148,7 +99,7 @@ Scikit-learn
 
 Matplotlib
 
-Tools
+<b>Tools</b>
 
 XAMPP
 
@@ -158,41 +109,41 @@ Git & GitHub
 
 Visual Studio Code
 
-📁 Project Structure
+<b>📁 Project Structure</b>
 SpiceCeylon/
 │
-├── admin/
+├── admin/<br>
 │
-├── farmer/
+├── farmer/<br>
 │
-├── customer/
+├── customer/<br>
 │
-├── auth/
+├── auth/<br>
 │
-├── config/
+├── config/<br>
 │
-├── forecast/
+├── forecast/<br>
 │
-├── assets/
+├── assets/<br>
 │   ├── css
 │   ├── js
 │   └── images
 │
-├── database/
+├── database/<br>
 │   └── spiceceylon.sql
 │
-└── index.php
+└── index.php</br>
 
-⚙️ Installation Guide
-1️⃣ Clone the Repository
+<b>⚙️ Installation Guide</b>
+<b>1️⃣ Clone the Repository
 git clone https://github.com/YOUR_USERNAME/SpiceCeylon.git
 
-2️⃣ Move Project to XAMPP
+<b>2️⃣ Move Project to XAMPP</b>
 
 Copy the project folder to:
 xampp/htdocs/
 
-3️⃣ Create Database
+<b>3️⃣ Create Database</b>
 
 Open phpMyAdmin
 
@@ -200,11 +151,11 @@ Create database:spiceceylon_db
 
 Import:database/spiceceylon.sql
 
-4️⃣ Configure Database Connection
+<b>4️⃣ Configure Database Connection</b>
 
 Edit the file:config/db.php
 
-5️⃣ Run the System
+<b>5️⃣ Run the System</b>
 
 Start Apache and MySQL in XAMPP.
 
@@ -217,7 +168,7 @@ Open browser:http://localhost/SpiceCeylon
 | Farmer   | [d@gmail.com]        | D67890      |
 | Customer | [sr@gmail.com]       | 12345       |
 
-📊 Forecasting Module
+<b>📊 Forecasting Module</b>
 
 The forecasting module analyzes historical sales data and predicts future demand.
 
@@ -235,7 +186,7 @@ Visualization of results
 
 This helps farmers plan production and inventory effectively.
 
-🚧 Limitations
+<b>🚧 Limitations</b>
 
 Forecasting accuracy depends on historical data availability
 
@@ -243,7 +194,7 @@ System currently supports only web platform
 
 Payment gateway integration is not implemented
 
-🔮 Future Improvements
+<b>🔮 Future Improvements</b>
 
 Mobile application
 
@@ -255,14 +206,14 @@ Real-time delivery tracking
 
 Multi-language support
 
-👩‍💻 Developer
+<b>👩‍💻 Developer</b>
 
 Lakshani246
 
 Final Year Project
 BSc (Hons) Software Engineering
 
-📜 License
+<b>📜 License</b>
 
 This project is developed for academic purposes.
 
