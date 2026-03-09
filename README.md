@@ -83,11 +83,11 @@ SpiceCeylon/
 ├── forecast/<br>
 │
 ├── assets/<br>
-│   ├── css<br>
-│   ├── js<br>
+│   ├── css
+│   ├── js
 │   └── images<br>
 │
-├── database/<br>
+├── database/
 │   └── spiceceylon.sql<br>
 │
 └── index.php</br>
@@ -174,4 +174,5 @@ BSc (Hons) Software Engineering
 <b>📜 License</b>
 
 This project is developed for academic purposes.
+
 
